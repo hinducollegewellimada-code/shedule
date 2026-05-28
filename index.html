@@ -4,786 +4,667 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>BD/Hindu College Welimada — Marks Schedule</title>
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Poppins:wght@700;800;900&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
- 
-<!-- ══════════════════════════════════════════════════
-     FIREBASE SDK  — SAME CONFIG AS index.html
-     ══════════════════════════════════════════════════ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
 <script type="module">
-  // ╔══════════════════════════════════════════════════════════════════╗
-  // ║  PASTE THE SAME firebaseConfig you used in index.html HERE      ║
-  // ║  Both files share the same Firestore database automatically.    ║
-  // ╚══════════════════════════════════════════════════════════════════╝
   const firebaseConfig = {
-  apiKey: "AIzaSyBh5PYhost31YBNWmr4G3sVCPxcaD2yNEY",
-  authDomain: "whc-full-data.firebaseapp.com",
-  projectId: "whc-full-data",
-  storageBucket: "whc-full-data.firebasestorage.app",
-  messagingSenderId: "600680727409",
-  appId: "1:600680727409:web:ffedf16d56098282bfecd0",
-  measurementId: "G-YSQCY0FHP0"
+    apiKey:            "AIzaSyBh5PYhost31YBNWmr4G3sVCPxcaD2yNEY",
+    authDomain:        "whc-full-data.firebaseapp.com",
+    projectId:         "whc-full-data",
+    storageBucket:     "whc-full-data.firebasestorage.app",
+    messagingSenderId: "600680727409",
+    appId:             "1:600680727409:web:ffedf16d56098282bfecd0",
+    measurementId:     "G-YSQCY0FHP0"
   };
- 
   import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import { getFirestore, collection, getDocs, doc, getDoc,
            setDoc, updateDoc, deleteDoc, query, where,
            orderBy, serverTimestamp }
                                from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
- 
   const app = initializeApp(firebaseConfig);
   const db  = getFirestore(app);
- 
   window.FB = { db, collection, getDocs, doc, getDoc,
     setDoc, updateDoc, deleteDoc, query, where, orderBy, serverTimestamp };
- 
   window.dispatchEvent(new Event("firebaseReady"));
 </script>
- 
-<!-- ══════════════════════════════════════════════════
-     SHARED AUTH  (same localStorage as index.html)
-     ══════════════════════════════════════════════════ -->
+
 <script>
-const DEFAULT_PRINCIPAL = {
-  username: "principal@whc.lk",
-  password: "principal@1221",
-  name: "Principal",
-  role: "principal"
-};
+const DEFAULT_PRINCIPAL = { username:"principal@whc.lk", password:"principal@1221", name:"Principal", role:"principal" };
 window.AUTH = {
-  getPrincipal(){
-    const s = localStorage.getItem("whc_principal");
-    return s ? JSON.parse(s) : {...DEFAULT_PRINCIPAL};
-  },
-  getTeachers(){
-    const s = localStorage.getItem("whc_teachers");
-    return s ? JSON.parse(s) : [];
-  },
-  getSession(){
-    const s = sessionStorage.getItem("whc_session");
-    return s ? JSON.parse(s) : null;
-  },
-  setSession(u){ sessionStorage.setItem("whc_session", JSON.stringify(u)); },
+  getPrincipal(){ const s=localStorage.getItem("whc_principal"); return s?JSON.parse(s):{...DEFAULT_PRINCIPAL}; },
+  getTeachers(){ const s=localStorage.getItem("whc_teachers"); return s?JSON.parse(s):[]; },
+  getSession(){ const s=sessionStorage.getItem("whc_session"); return s?JSON.parse(s):null; },
+  setSession(u){ sessionStorage.setItem("whc_session",JSON.stringify(u)); },
   clearSession(){ sessionStorage.removeItem("whc_session"); },
-  login(username, password){
-    const p = this.getPrincipal();
-    if(username === p.username && password === p.password){
-      const u = {id:"principal", role:"principal", name:p.name, email:username};
-      this.setSession(u); return u;
-    }
-    const t = this.getTeachers().find(t => t.username===username && t.password===password);
-    if(t){
-      const u = {id:t.id, role:"teacher", name:t.name, email:t.username,
-        permissions:t.permissions||{}, assignedClasses:t.assignedClasses||[]};
-      this.setSession(u); return u;
-    }
+  login(username,password){
+    const p=this.getPrincipal();
+    if(username===p.username&&password===p.password){ const u={id:"principal",role:"principal",name:p.name,email:username}; this.setSession(u); return u; }
+    const t=this.getTeachers().find(t=>t.username===username&&t.password===password);
+    if(t){ const u={id:t.id,role:"teacher",name:t.name,email:t.username,permissions:t.permissions||{},assignedClasses:t.assignedClasses||[]}; this.setSession(u); return u; }
     return null;
   }
 };
 </script>
- 
+
 <style>
-/* ══ RESET & VARIABLES ══════════════════════════════ */
+/* ================================================================
+   RESET & ROOT VARIABLES  (identical to index.html)
+   ================================================================ */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --navy:#0f1f45;
-  --navy2:#1a2e5c;
-  --blue:#2563eb;
-  --sky:#3b82f6;
-  --cyan:#06b6d4;
-  --light:#eff6ff;
-  --green:#10b981;
-  --red:#ef4444;
-  --orange:#f59e0b;
-  --gray:#64748b;
-  --border:#e2e8f0;
-  --white:#fff;
-  --text:#1e293b;
-  --bg:#f1f5f9;
-  --card-r:16px;
+  --blue-dark:   #0a1628;
+  --blue-mid:    #0d2147;
+  --blue-main:   #1a3a8f;
+  --blue-light:  #2563eb;
+  --blue-accent: #3b82f6;
+  --cyan:        #06b6d4;
+  --sky:         #38bdf8;
+  --white:       #ffffff;
+  --glass-bg:    rgba(255,255,255,0.07);
+  --glass-border:rgba(255,255,255,0.15);
+  --text-main:   #e2e8f0;
+  --text-muted:  #94a3b8;
+  --text-dark:   #1e293b;
+  --success:     #10b981;
+  --warning:     #f59e0b;
+  --danger:      #ef4444;
+  --late:        #f97316;
+  --card-radius: 18px;
+  --sidebar-w:   260px;
+  --transition:  all .3s cubic-bezier(.4,0,.2,1);
 }
-body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
-::-webkit-scrollbar{width:6px;height:6px}
-::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
- 
-/* ══ LOGIN ══════════════════════════════════════════ */
-#loginScreen{
-  display:flex;align-items:center;justify-content:center;
-  min-height:100vh;
-  background:linear-gradient(135deg,#0f1f45 0%,#1a3a8f 50%,#0e7490 100%);
-  position:relative;overflow:hidden;
-}
-#loginScreen::before{
-  content:'';position:absolute;inset:0;
-  background:
-    radial-gradient(ellipse 70% 50% at 20% 20%,rgba(37,99,235,.4) 0%,transparent 60%),
-    radial-gradient(ellipse 60% 50% at 80% 80%,rgba(6,182,212,.3) 0%,transparent 60%);
-}
-.login-box{
-  position:relative;background:white;border-radius:24px;
-  padding:48px 42px;width:380px;max-width:95vw;
-  box-shadow:0 32px 80px rgba(0,0,0,.35);text-align:center;
-  animation:fadeUp .5s ease;
-}
-@keyframes fadeUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
-.login-logo{margin-bottom:6px}
-.login-logo img{width:76px;height:76px;object-fit:contain;border-radius:50%;
-  border:3px solid #e2e8f0;padding:6px;background:#f8fafc}
-.login-box h2{font-family:'Poppins',sans-serif;font-size:19px;font-weight:800;
-  color:var(--navy);margin:10px 0 2px;line-height:1.2}
-.login-box p{color:var(--gray);font-size:13px;margin-bottom:28px}
-.login-field{text-align:left;margin-bottom:14px}
-.login-field label{display:block;font-size:12px;font-weight:800;color:var(--navy);
-  text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
-.login-field input{width:100%;padding:11px 14px;border:2px solid var(--border);
-  border-radius:10px;font-size:14px;font-family:inherit;transition:.2s;color:var(--text)}
-.login-field input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
-.login-btn{
-  width:100%;padding:13px;
-  background:linear-gradient(135deg,var(--blue),#1d4ed8);
-  color:white;border:none;border-radius:11px;
-  font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;
-  transition:.2s;margin-top:4px;
-  box-shadow:0 4px 18px rgba(37,99,235,.4);
-}
-.login-btn:hover{transform:translateY(-1px);box-shadow:0 7px 22px rgba(37,99,235,.5)}
-.login-error{
-  color:var(--red);font-size:12.5px;margin-top:10px;
-  display:none;background:#fef2f2;border:1px solid #fecaca;
-  border-radius:8px;padding:8px 12px;
-}
-.login-link{
-  margin-top:18px;font-size:12.5px;color:var(--gray);
-  border-top:1px solid var(--border);padding-top:16px;
-}
-.login-link a{color:var(--blue);font-weight:700;text-decoration:none}
-.login-link a:hover{text-decoration:underline}
- 
-/* ══ APP SHELL ══════════════════════════════════════ */
-#app{display:none}
- 
-/* Header */
-header{
-  background:var(--navy);color:white;
-  display:flex;align-items:center;justify-content:space-between;
-  padding:0 24px;height:62px;
-  box-shadow:0 2px 16px rgba(0,0,0,.25);
-  position:sticky;top:0;z-index:100;
-}
-.header-left{display:flex;align-items:center;gap:14px}
-.header-left h1{font-family:'Poppins',sans-serif;font-size:16px;font-weight:800;white-space:nowrap}
-.att-link{
-  display:inline-flex;align-items:center;gap:6px;
-  background:rgba(6,182,212,.2);border:1px solid rgba(6,182,212,.4);
-  color:#67e8f9;padding:6px 13px;border-radius:8px;
-  font-size:12px;font-weight:700;text-decoration:none;
-  transition:.2s;white-space:nowrap;
-}
-.att-link:hover{background:rgba(6,182,212,.35);color:white}
-.header-right{display:flex;align-items:center;gap:10px}
-.user-badge{
-  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);
-  border-radius:8px;padding:5px 12px;font-size:12.5px;font-weight:700;
-}
-.logout-btn{
-  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);
-  color:white;padding:6px 13px;border-radius:8px;cursor:pointer;
-  font-size:12.5px;font-family:inherit;font-weight:600;transition:.2s;
-}
-.logout-btn:hover{background:rgba(255,255,255,.18)}
- 
-/* Main layout */
-.main{padding:22px 24px;max-width:1600px;margin:0 auto}
- 
-/* ══ TABS ═══════════════════════════════════════════ */
-.tab-section{
-  background:white;border-radius:14px;padding:14px 18px;
-  margin-bottom:20px;box-shadow:0 1px 8px rgba(0,0,0,.05);
-  border:1px solid var(--border);
-}
-.tab-section-label{
-  font-size:10px;font-weight:900;text-transform:uppercase;
-  letter-spacing:.1em;color:var(--gray);margin-bottom:10px;
-}
-.grade-tabs{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px}
-.grade-tab{
-  padding:7px 15px;background:var(--bg);border:2px solid var(--border);
-  border-radius:20px;cursor:pointer;font-size:12.5px;font-weight:700;
-  font-family:inherit;color:var(--gray);transition:.2s;
-}
-.grade-tab:hover{border-color:var(--sky);color:var(--sky)}
-.grade-tab.active{background:var(--blue);border-color:var(--blue);color:white;box-shadow:0 3px 12px rgba(37,99,235,.35)}
-.sum-tab{border-color:#fed7aa;color:#c2410c;background:#fff7ed}
-.sum-tab:hover{border-color:var(--orange);color:var(--orange)}
-.sum-tab.active{background:var(--orange);border-color:var(--orange);color:white;box-shadow:0 3px 12px rgba(245,158,11,.35)}
- 
-/* ══ LOADING STATE ══════════════════════════════════ */
-#loadingBar{
-  display:flex;align-items:center;justify-content:center;gap:12px;
-  padding:3rem;color:var(--gray);font-weight:700;
-}
-.spinner{
-  width:28px;height:28px;border:3px solid #e2e8f0;
-  border-top-color:var(--blue);border-radius:50%;
-  animation:spin .7s linear infinite;
-}
+body{ font-family:'Nunito',sans-serif; background:var(--blue-dark); color:var(--text-main); min-height:100vh; overflow-x:hidden; }
+body::before{ content:''; position:fixed; inset:0; z-index:-1; background: radial-gradient(ellipse 80% 60% at 20% 10%,rgba(37,99,235,.35) 0%,transparent 60%), radial-gradient(ellipse 60% 50% at 80% 80%,rgba(6,182,212,.25) 0%,transparent 60%), linear-gradient(160deg,#0a1628 0%,#0d2147 50%,#0f172a 100%); }
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--blue-accent);border-radius:3px}
+
+/* UTILITY */
+.hidden{display:none!important} .flex{display:flex} .items-center{align-items:center}
+.gap-2{gap:.5rem} .gap-3{gap:.75rem} .gap-4{gap:1rem}
+.mt-2{margin-top:.5rem} .mt-4{margin-top:1rem} .mb-4{margin-bottom:1rem}
+.w-full{width:100%} .text-sm{font-size:.85rem} .text-xs{font-size:.75rem}
+.font-bold{font-weight:700} .text-center{text-align:center}
+
+/* GLASS */
+.glass{ background:var(--glass-bg); border:1px solid var(--glass-border); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border-radius:var(--card-radius); }
+
+/* BUTTONS */
+.btn{ display:inline-flex; align-items:center; gap:.45rem; padding:.6rem 1.3rem; border:none; cursor:pointer; border-radius:10px; font-family:'Nunito',sans-serif; font-size:.9rem; font-weight:700; transition:var(--transition); white-space:nowrap; }
+.btn-primary{ background:linear-gradient(135deg,var(--blue-light),var(--blue-accent)); color:#fff; box-shadow:0 4px 20px rgba(37,99,235,.45); }
+.btn-primary:hover{ transform:translateY(-2px); box-shadow:0 8px 28px rgba(37,99,235,.6); }
+.btn-success{ background:linear-gradient(135deg,#059669,var(--success)); color:#fff; }
+.btn-success:hover{ transform:translateY(-2px); }
+.btn-danger{ background:linear-gradient(135deg,#dc2626,var(--danger)); color:#fff; }
+.btn-warning{ background:linear-gradient(135deg,#d97706,var(--warning)); color:#fff; }
+.btn-outline{ background:transparent; color:var(--text-main); border:1px solid var(--glass-border); }
+.btn-outline:hover{ background:var(--glass-bg); }
+.btn-sm{ padding:.4rem .9rem; font-size:.8rem; border-radius:8px; }
+.btn-icon{ padding:.5rem; border-radius:8px; aspect-ratio:1; justify-content:center; }
+
+/* INPUTS */
+.input-group{ display:flex; flex-direction:column; gap:.35rem; margin-bottom:1rem; }
+.input-group label{ font-size:.82rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; }
+.form-control{ background:rgba(255,255,255,0.06); border:1px solid var(--glass-border); color:var(--text-main); border-radius:10px; padding:.65rem 1rem; font-family:'Nunito',sans-serif; font-size:.9rem; transition:var(--transition); width:100%; }
+.form-control:focus{ outline:none; border-color:var(--blue-accent); background:rgba(255,255,255,0.1); box-shadow:0 0 0 3px rgba(59,130,246,.25); }
+.form-control option{ background:var(--blue-mid); }
+
+/* BADGES */
+.badge{ display:inline-flex; align-items:center; gap:.3rem; padding:.2rem .65rem; border-radius:999px; font-size:.72rem; font-weight:700; }
+.badge-present{ background:rgba(16,185,129,.2); color:var(--success); border:1px solid rgba(16,185,129,.3); }
+.badge-absent{ background:rgba(239,68,68,.2); color:var(--danger); border:1px solid rgba(239,68,68,.3); }
+.badge-admin{ background:rgba(139,92,246,.2); color:#a78bfa; border:1px solid rgba(139,92,246,.3); }
+.badge-teacher{ background:rgba(37,99,235,.2); color:var(--sky); border:1px solid rgba(37,99,235,.3); }
+
+/* TOAST */
+#toast-container{ position:fixed; top:1.2rem; right:1.2rem; z-index:9999; display:flex; flex-direction:column; gap:.6rem; pointer-events:none; }
+.toast{ background:var(--blue-mid); border:1px solid var(--glass-border); color:var(--text-main); padding:.85rem 1.2rem; border-radius:12px; display:flex; align-items:center; gap:.7rem; font-size:.88rem; font-weight:600; backdrop-filter:blur(16px); box-shadow:0 8px 32px rgba(0,0,0,.4); animation:slideIn .35s ease; pointer-events:auto; min-width:260px; }
+.toast.success{border-left:4px solid var(--success)} .toast.error{border-left:4px solid var(--danger)}
+.toast.info{border-left:4px solid var(--blue-accent)} .toast.warning{border-left:4px solid var(--warning)}
+@keyframes slideIn{from{opacity:0;transform:translateX(60px)}to{opacity:1;transform:translateX(0)}}
+@keyframes slideOut{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(60px)}}
+
+/* LOADER */
+#loader{ position:fixed; inset:0; z-index:9998; background:var(--blue-dark); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1.5rem; }
+.loader-ring{ width:64px; height:64px; border:5px solid rgba(255,255,255,.1); border-top-color:var(--blue-accent); border-radius:50%; animation:spin .8s linear infinite; }
 @keyframes spin{to{transform:rotate(360deg)}}
- 
-/* ══ MARKS CARD ═════════════════════════════════════ */
-.card{background:white;border-radius:var(--card-r);box-shadow:0 2px 12px rgba(0,0,0,.06);overflow:hidden;border:1px solid var(--border)}
-.card-header{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:15px 20px;border-bottom:1px solid var(--border);
-  flex-wrap:wrap;gap:10px;background:linear-gradient(135deg,#f8fafc,#f1f5f9);
-}
-.card-header h3{font-family:'Poppins',sans-serif;font-size:16px;font-weight:800;color:var(--navy)}
-.card-header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.card-meta{font-size:12.5px;color:var(--gray)}
-.summary-btn{
-  background:linear-gradient(135deg,var(--orange),#d97706);
-  color:white;border:none;padding:8px 16px;border-radius:9px;
-  font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit;
-  transition:.2s;box-shadow:0 2px 8px rgba(245,158,11,.3);
-}
-.summary-btn:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(245,158,11,.4)}
- 
-/* Subject management */
-.subject-btn{
-  background:linear-gradient(135deg,var(--cyan),#0891b2);
-  color:white;border:none;padding:7px 14px;border-radius:8px;
-  font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;transition:.2s;
-}
-.subject-btn:hover{transform:translateY(-1px)}
- 
-/* ══ TABLE ══════════════════════════════════════════ */
-.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-table{width:100%;border-collapse:collapse;font-size:13px}
-thead th{
-  background:#1a2e5c;color:white;
-  font-weight:800;padding:10px 10px;text-align:center;
-  white-space:nowrap;font-size:12px;letter-spacing:.02em;
-}
-thead th:nth-child(1),thead th:nth-child(2),thead th:nth-child(3){text-align:left}
-tbody td{padding:8px 10px;border-bottom:1px solid #f1f5f9;text-align:center;vertical-align:middle}
-tbody td:nth-child(1),tbody td:nth-child(2),tbody td:nth-child(3){text-align:left}
-tbody tr:hover td{background:#f8faff}
-tbody tr:last-child td{border-bottom:none}
-tr.separator td{height:8px;background:#f1f5f9;padding:0}
-.sep-label td{background:#f8fafc;padding:4px 10px;text-align:left;
-  font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;
-  color:var(--gray);border-bottom:1px solid var(--border)}
- 
-/* Editable cells */
-td.editable{cursor:pointer}
-td.editable:hover .score-val{background:#dbeafe;color:#1d4ed8}
-td.editable input{
-  width:60px;padding:4px 5px;border:2px solid var(--blue);
-  border-radius:7px;text-align:center;font-size:13px;
-  font-family:inherit;font-weight:700;color:var(--navy);
-  outline:none;background:#eff6ff;
-}
- 
-/* Score colour classes */
-.score-val{
-  display:inline-block;min-width:34px;padding:2px 7px;
-  border-radius:7px;font-weight:700;cursor:pointer;transition:.15s;
-}
-.score-val.empty{color:#cbd5e1;font-weight:600}
-.score-a{color:#15803d;background:#dcfce7}
-.score-b{color:#1d4ed8;background:#dbeafe}
-.score-c{color:#d97706;background:#fef3c7}
-.score-f{color:#dc2626;background:#fee2e2}
-.total-cell{font-weight:800;color:var(--navy);font-size:13px}
-.avg-cell{font-weight:700;color:var(--blue)}
-.rank-cell{font-weight:800;color:var(--green)}
- 
-/* ══ SAVE BAR ═══════════════════════════════════════ */
-.save-bar{
-  position:fixed;bottom:22px;right:22px;z-index:200;
-  display:flex;gap:10px;align-items:center;
-}
-.save-btn{
-  background:linear-gradient(135deg,var(--green),#059669);
-  color:white;border:none;padding:12px 22px;border-radius:13px;
-  font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;
-  box-shadow:0 4px 20px rgba(16,185,129,.45);transition:.2s;
-  display:flex;align-items:center;gap:8px;
-}
-.save-btn:hover{transform:translateY(-2px);box-shadow:0 7px 28px rgba(16,185,129,.55)}
-.save-status{
-  background:white;padding:9px 15px;border-radius:11px;
-  font-size:13px;font-weight:700;box-shadow:0 2px 12px rgba(0,0,0,.12);
-  display:none;
-}
-.save-status.show{display:block}
-.save-status.ok{color:var(--green)}
-.save-status.err{color:var(--red)}
- 
-/* ══ SUMMARY VIEW ═══════════════════════════════════ */
-#summaryView{display:none}
-.sum-topbar{
-  display:flex;align-items:center;justify-content:space-between;
-  margin-bottom:18px;flex-wrap:wrap;gap:10px;
-}
-.sum-topbar h2{font-family:'Poppins',sans-serif;font-size:18px;font-weight:900;color:var(--navy)}
-.sum-actions{display:flex;gap:8px;flex-wrap:wrap}
-.print-btn{
-  background:linear-gradient(135deg,var(--green),#059669);
-  color:white;border:none;padding:9px 18px;border-radius:10px;
-  font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;
-  transition:.2s;display:flex;align-items:center;gap:6px;
-}
-.print-btn:hover{transform:translateY(-1px)}
-.back-btn{
-  background:var(--navy);color:white;border:none;padding:9px 18px;
-  border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;
-  font-family:inherit;transition:.2s;
-}
-.back-btn:hover{background:var(--navy2)}
- 
-/* Summary card */
-.sum-card{
-  background:white;border-radius:var(--card-r);
-  box-shadow:0 2px 14px rgba(0,0,0,.07);
-  overflow:hidden;margin-bottom:24px;border:1px solid var(--border);
-}
-.sum-title-bar{
-  background:linear-gradient(135deg,var(--navy),var(--navy2));
-  color:white;padding:14px 22px;
-  display:flex;align-items:center;justify-content:space-between;
-}
-.sum-title-bar h3{font-family:'Poppins',sans-serif;font-size:15px;font-weight:800}
-.sum-title-bar span{font-size:12px;opacity:.7}
-.sum-table-wrap{overflow-x:auto}
-.sum-table{width:100%;border-collapse:collapse;font-size:12px}
-.sum-table th{
-  background:#1a2e5c;color:white;padding:9px 8px;
-  text-align:center;font-weight:800;white-space:nowrap;
-  border:1px solid #2d4f8a;font-size:11px;
-}
-.sum-table th:nth-child(1),.sum-table th:nth-child(2),
-.sum-table th:nth-child(3),.sum-table th:nth-child(4){text-align:left}
-.sum-table td{padding:7px 8px;border:1px solid #e2e8f0;text-align:center;vertical-align:middle}
-.sum-table td:nth-child(1),.sum-table td:nth-child(2),
-.sum-table td:nth-child(3),.sum-table td:nth-child(4){text-align:left}
-.sum-table tr:nth-child(even) td{background:#f8fafc}
-.sum-table tr.sep-row td{height:5px;background:#dde3ef;padding:0;border-color:#cdd7e8}
-.sum-table .stotal{font-weight:800;color:var(--navy)}
-.sum-table .savg{font-weight:700;color:var(--blue)}
-.sum-table .srank{font-weight:900}
-.sum-table .r1{color:#d97706}.sum-table .r2{color:#6b7280}.sum-table .r3{color:#92400e}
- 
-/* Stats row */
-.stats-row{
-  display:grid;grid-template-columns:repeat(auto-fill,minmax(125px,1fr));
-  gap:10px;padding:16px 20px;background:#f8fafc;border-top:1px solid var(--border);
-}
-.stat-box{
-  background:white;border-radius:10px;padding:10px 12px;
-  text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.06);
-  border:1px solid var(--border);
-}
-.stat-num{font-family:'Poppins',sans-serif;font-size:20px;font-weight:900;color:var(--navy)}
-.stat-lbl{font-size:11px;color:var(--gray);margin-top:2px;font-weight:700}
- 
-/* Signature section */
-.sig-section{
-  display:grid;grid-template-columns:1fr 1fr 1fr;
-  gap:36px;padding:26px 28px 22px;
-  border-top:2px solid var(--border);background:white;
-}
-.sig-label{font-size:11px;font-weight:900;color:var(--navy);
-  text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
-.sig-space{border-bottom:1.5px solid #333;height:52px;width:100%;margin:8px 0 2px}
-.sig-caption{font-size:10.5px;color:var(--gray);text-align:center;font-weight:600;margin-top:2px}
-.sig-name-input{
-  border:none;border-bottom:1.5px solid #333;width:100%;
-  padding:4px 0;font-size:13px;font-family:inherit;
-  font-weight:700;background:transparent;color:var(--text);outline:none;
-}
-.sig-name-input::placeholder{color:#bbb;font-weight:400;font-style:italic}
-.sig-date-row{display:flex;align-items:center;gap:7px;margin-top:12px}
-.sig-date-label{font-size:12px;font-weight:800;color:var(--gray);white-space:nowrap}
-.sig-date-input{
-  flex:1;border:none;border-bottom:1.5px dotted #555;
-  padding:3px 0;font-size:12px;font-family:inherit;
-  background:transparent;outline:none;color:var(--text);
-  font-weight:600;text-align:center;
-}
- 
-/* ══ ADMIN PANEL ════════════════════════════════════ */
-.admin-section{margin-top:26px}
-.admin-card{
-  background:white;border-radius:var(--card-r);padding:22px;
-  box-shadow:0 2px 12px rgba(0,0,0,.06);border:1px solid var(--border);
-}
-.admin-card h3{font-family:'Poppins',sans-serif;font-size:15px;font-weight:800;color:var(--navy);margin-bottom:4px}
-.admin-hint{font-size:12.5px;color:var(--gray);margin-bottom:16px}
-.user-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:11px}
-.user-card{border:2px solid var(--border);border-radius:11px;padding:13px 15px}
-.user-card.is-admin{border-color:#fbbf24;background:#fffbeb}
-.user-name{font-weight:800;font-size:13.5px;color:var(--navy)}
-.user-role{font-size:11.5px;color:var(--gray);margin:2px 0}
-.user-pass{
-  font-size:12px;color:var(--blue);font-weight:700;font-family:monospace;
-  background:#f0f9ff;padding:2px 7px;border-radius:5px;
-  display:inline-block;margin-top:4px;border:1px solid #bae6fd;
-}
- 
-/* ══ MODAL ══════════════════════════════════════════ */
-.overlay{
-  position:fixed;inset:0;z-index:300;
-  background:rgba(5,15,35,.65);backdrop-filter:blur(6px);
-  display:flex;align-items:center;justify-content:center;padding:1rem;
-  animation:fadeIn .2s ease;
-}
+#loader p{color:var(--text-muted);font-size:.95rem}
+
+/* LOGIN */
+#page-login{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:1.5rem; }
+.login-card{ width:100%; max-width:420px; padding:2.5rem 2rem; animation:fadeUp .6s ease; }
+@keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+.login-logo{ text-align:center; margin-bottom:2rem; }
+.login-logo img{ width:80px; height:80px; object-fit:contain; border-radius:50%; border:3px solid var(--glass-border); background:rgba(255,255,255,.05); padding:6px; animation:pulse 3s ease-in-out infinite; }
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(37,99,235,.5)}50%{box-shadow:0 0 0 16px rgba(37,99,235,0)}}
+.login-logo h1{ font-family:'Poppins',sans-serif; font-size:1.15rem; font-weight:800; background:linear-gradient(135deg,#fff,var(--sky)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; margin-top:.75rem; line-height:1.3; }
+.login-logo p{color:var(--text-muted);font-size:.8rem;margin-top:.25rem}
+.login-btn{width:100%;padding:.8rem;font-size:1rem;margin-top:.5rem;border-radius:12px}
+
+/* APP SHELL */
+#app-shell{display:flex;min-height:100vh}
+
+/* SIDEBAR */
+#sidebar{ width:var(--sidebar-w); min-height:100vh; background:rgba(10,22,40,.85); border-right:1px solid var(--glass-border); backdrop-filter:blur(20px); display:flex; flex-direction:column; position:fixed; left:0; top:0; z-index:100; transition:var(--transition); }
+#sidebar.collapsed{width:70px}
+.sidebar-header{ padding:1.25rem 1rem; display:flex; align-items:center; gap:.75rem; border-bottom:1px solid var(--glass-border); }
+.sidebar-logo{ width:40px; height:40px; object-fit:contain; border-radius:10px; background:rgba(255,255,255,.05); flex-shrink:0; }
+.sidebar-title{flex:1;overflow:hidden}
+.sidebar-title h2{font-size:.82rem;font-weight:800;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sidebar-title p{font-size:.68rem;color:var(--text-muted);margin-top:2px}
+#collapse-btn{ background:none; border:none; color:var(--text-muted); cursor:pointer; padding:.3rem; border-radius:6px; transition:var(--transition); }
+#collapse-btn:hover{color:var(--white);background:var(--glass-bg)}
+.sidebar-user{ padding:1rem; border-bottom:1px solid var(--glass-border); display:flex; align-items:center; gap:.75rem; overflow:hidden; }
+.user-avatar{ width:38px; height:38px; border-radius:50%; background:linear-gradient(135deg,var(--blue-light),var(--cyan)); display:flex; align-items:center; justify-content:center; font-size:1rem; font-weight:700; flex-shrink:0; color:#fff; }
+.user-info{flex:1;overflow:hidden}
+.user-info h4{font-size:.85rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-info p{font-size:.72rem;color:var(--text-muted)}
+.sidebar-nav{flex:1;padding:.75rem .6rem;overflow-y:auto}
+.nav-section-title{ font-size:.65rem; font-weight:800; text-transform:uppercase; letter-spacing:.1em; color:var(--text-muted); padding:.5rem .6rem .3rem; }
+.nav-item{ display:flex; align-items:center; gap:.8rem; padding:.7rem .9rem; border-radius:12px; cursor:pointer; transition:var(--transition); margin-bottom:.2rem; color:var(--text-muted); font-size:.88rem; font-weight:600; white-space:nowrap; overflow:hidden; position:relative; }
+.nav-item:hover{background:var(--glass-bg);color:var(--white)}
+.nav-item.active{ background:linear-gradient(135deg,rgba(37,99,235,.35),rgba(6,182,212,.15)); color:var(--white); border:1px solid rgba(37,99,235,.3); }
+.nav-item i{width:18px;text-align:center;flex-shrink:0}
+.nav-item span{transition:var(--transition)}
+#sidebar.collapsed .nav-item span,
+#sidebar.collapsed .nav-section-title,
+#sidebar.collapsed .user-info,
+#sidebar.collapsed .sidebar-title{opacity:0;width:0;overflow:hidden}
+.sidebar-footer{padding:.75rem .6rem;border-top:1px solid var(--glass-border)}
+
+/* MAIN */
+#main-content{ flex:1; margin-left:var(--sidebar-w); transition:var(--transition); min-height:100vh; display:flex; flex-direction:column; }
+#sidebar.collapsed ~ #main-content{margin-left:70px}
+
+/* TOPBAR */
+#topbar{ position:sticky; top:0; z-index:90; background:rgba(10,22,40,.8); border-bottom:1px solid var(--glass-border); backdrop-filter:blur(16px); padding:.9rem 1.5rem; display:flex; align-items:center; gap:1rem; }
+#page-title{font-size:1.1rem;font-weight:800;flex:1}
+.topbar-actions{display:flex;align-items:center;gap:.75rem}
+.topbar-date{font-size:.78rem;color:var(--text-muted);white-space:nowrap}
+
+/* PAGE CONTENT */
+.page-content{flex:1;padding:1.5rem;animation:fadeIn .4s ease}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-.modal-box{
-  background:white;border-radius:20px;padding:28px;
-  width:100%;max-width:460px;max-height:88vh;overflow-y:auto;
-  box-shadow:0 28px 70px rgba(0,0,0,.25);animation:popIn .25s ease;
-}
-@keyframes popIn{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:scale(1)}}
-.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
-.modal-header h3{font-family:'Poppins',sans-serif;font-size:16px;font-weight:800;color:var(--navy)}
-.modal-close{
-  background:none;border:none;cursor:pointer;color:var(--gray);
-  font-size:18px;padding:3px;border-radius:6px;transition:.15s;
-}
-.modal-close:hover{color:var(--red);background:#fef2f2}
-.input-group{display:flex;flex-direction:column;gap:4px;margin-bottom:13px}
-.input-group label{font-size:12px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.05em}
-.input-group input,.input-group select{
-  padding:10px 13px;border:2px solid var(--border);border-radius:9px;
-  font-size:14px;font-family:inherit;color:var(--text);transition:.2s;
-}
-.input-group input:focus,.input-group select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
-.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border:none;
-  cursor:pointer;border-radius:10px;font-family:inherit;font-size:13.5px;font-weight:800;transition:.2s}
-.btn-primary{background:linear-gradient(135deg,var(--blue),#1d4ed8);color:white;box-shadow:0 3px 12px rgba(37,99,235,.35)}
-.btn-primary:hover{transform:translateY(-1px)}
-.btn-outline{background:transparent;color:var(--text);border:2px solid var(--border)}
-.btn-outline:hover{background:var(--bg)}
-.btn-danger{background:linear-gradient(135deg,var(--red),#dc2626);color:white}
-.btn-sm{padding:6px 13px;font-size:12px;border-radius:8px}
- 
-/* ══ PRINT STYLES ═══════════════════════════════════ */
-.print-school-header{display:none}
-@media print{
-  body{background:white;font-size:11px}
-  header,.tab-section,.save-bar,.no-print{display:none!important}
-  #app{display:block!important}
-  #mainView{display:none!important}
-  #summaryView{display:block!important}
-  .sum-topbar{display:none!important}
-  .sum-card{border-radius:0;box-shadow:none;margin-bottom:0;page-break-after:always;break-after:page}
-  .sum-card:last-child{page-break-after:avoid;break-after:avoid}
-  .sum-title-bar{background:#0f1f45!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .sum-table th{background:#1a2e5c!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:9px;padding:5px 4px}
-  .sum-table td{padding:4px 4px;font-size:9px}
-  .sum-table tr:nth-child(even) td{background:#f8fafc!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .sum-table tr.sep-row td{background:#dde3ef!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .stats-row{background:#f8fafc!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:10px 16px}
-  .stat-box{box-shadow:none;border:1px solid #e2e8f0}
-  .sig-section{border-top:2px solid #333;page-break-inside:avoid}
-  .print-school-header{display:block!important}
+.section-header{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem; margin-bottom:1.25rem; }
+.section-header h2{font-size:1.25rem;font-weight:800}
+
+/* CARDS */
+.card{padding:1.25rem;border-radius:var(--card-radius)}
+
+/* STATS */
+.stats-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:1rem; margin-bottom:1.5rem; }
+.stat-card{ padding:1.25rem 1rem; border-radius:var(--card-radius); display:flex; flex-direction:column; gap:.5rem; position:relative; overflow:hidden; animation:statIn .5s ease both; }
+@keyframes statIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.stat-card .stat-icon{ width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0; }
+.stat-card .stat-value{font-size:2rem;font-weight:800;line-height:1}
+.stat-card .stat-label{font-size:.78rem;color:var(--text-muted);font-weight:600}
+.stat-blue .stat-icon{background:rgba(37,99,235,.2);color:var(--blue-accent)}
+.stat-green .stat-icon{background:rgba(16,185,129,.2);color:var(--success)}
+.stat-orange .stat-icon{background:rgba(249,115,22,.2);color:var(--late)}
+.stat-cyan .stat-icon{background:rgba(6,182,212,.2);color:var(--cyan)}
+
+/* TABLE */
+.table-wrapper{overflow-x:auto;border-radius:var(--card-radius)}
+table{width:100%;border-collapse:collapse;font-size:.87rem}
+thead th{ background:rgba(37,99,235,.15); color:var(--text-muted); font-size:.72rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em; padding:.85rem 1rem; text-align:left; white-space:nowrap; }
+tbody td{padding:.7rem 1rem;border-bottom:1px solid var(--glass-border);vertical-align:middle;text-align:center}
+tbody td:nth-child(1),tbody td:nth-child(2),tbody td:nth-child(3){text-align:left}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:rgba(255,255,255,.03)}
+.td-actions{display:flex;gap:.4rem}
+
+/* MODAL */
+.modal-overlay{ position:fixed; inset:0; z-index:200; background:rgba(5,12,26,.75); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; padding:1rem; animation:fadeIn .25s ease; }
+.modal{ width:100%; max-width:540px; max-height:90vh; overflow-y:auto; padding:2rem; animation:scaleIn .3s cubic-bezier(.34,1.56,.64,1); }
+@keyframes scaleIn{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
+.modal-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem; }
+.modal-header h3{font-size:1.1rem;font-weight:800}
+.modal-close{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem;padding:.25rem}
+.modal-close:hover{color:var(--danger)}
+.modal-footer{display:flex;gap:.5rem;justify-content:flex-end;margin-top:1.25rem}
+
+/* EMPTY STATE */
+.empty-state{text-align:center;padding:3rem 1rem;color:var(--text-muted)}
+.empty-state i{font-size:3rem;opacity:.3;margin-bottom:1rem;display:block}
+.empty-state p{font-size:.9rem}
+
+/* TABS (class selector) */
+.tabs{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1.25rem}
+.tab-btn{ padding:.5rem 1.1rem; border-radius:10px; border:1px solid var(--glass-border); background:transparent; color:var(--text-muted); cursor:pointer; font-size:.85rem; font-weight:700; transition:var(--transition); font-family:'Nunito',sans-serif; }
+.tab-btn.active,.tab-btn:hover{background:var(--glass-bg);color:var(--white);border-color:var(--blue-accent)}
+.tab-btn.sum-tab{border-color:rgba(245,158,11,.3);color:var(--warning)}
+.tab-btn.sum-tab.active,.tab-btn.sum-tab:hover{background:rgba(245,158,11,.15);color:var(--warning);border-color:var(--warning)}
+
+/* MARKS-SPECIFIC STYLES */
+.score-val{ display:inline-block; min-width:36px; padding:2px 8px; border-radius:8px; font-weight:700; cursor:pointer; transition:.15s; font-size:.82rem; }
+.score-val.empty{color:var(--text-muted);font-weight:500}
+.score-a{color:#10b981;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3)}
+.score-b{color:var(--sky);background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.25)}
+.score-c{color:var(--warning);background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25)}
+.score-f{color:var(--danger);background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.25)}
+.score-val.score-a:hover,.score-val.score-b:hover,.score-val.score-c:hover,.score-val.score-f:hover,.score-val.empty:hover{filter:brightness(1.3)}
+
+td.editable input{ width:58px; padding:4px 6px; border:2px solid var(--blue-accent); border-radius:8px; text-align:center; font-size:.85rem; font-family:'Nunito',sans-serif; font-weight:700; color:var(--text-main); outline:none; background:rgba(37,99,235,.2); }
+
+.sep-label-row td{ background:rgba(37,99,235,.08); padding:5px 1rem; text-align:left; font-size:.72rem; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--text-muted); border-bottom:1px solid var(--glass-border); }
+
+.rank-num{ font-size:.85rem; font-weight:800; }
+.rank-1{color:#f59e0b} .rank-2{color:var(--text-muted)} .rank-3{color:#c2783b}
+.total-cell{font-weight:800;color:var(--text-main)}
+.avg-cell{font-weight:700;color:var(--sky)}
+
+/* SAVE BAR */
+.save-bar{ position:fixed; bottom:1.5rem; right:1.5rem; z-index:200; display:flex; gap:.75rem; align-items:center; }
+.save-status{ background:var(--blue-mid); border:1px solid var(--glass-border); padding:.7rem 1.1rem; border-radius:12px; font-size:.85rem; font-weight:700; box-shadow:0 4px 20px rgba(0,0,0,.3); display:none; backdrop-filter:blur(12px); }
+.save-status.show{display:block}
+.save-status.ok{color:var(--success);border-color:rgba(16,185,129,.4)}
+.save-status.err{color:var(--danger);border-color:rgba(239,68,68,.4)}
+
+/* SUMMARY/PRINT */
+.sum-table-wrap{overflow-x:auto}
+.sum-table{width:100%;border-collapse:collapse;font-size:.8rem}
+.sum-table th{ background:rgba(37,99,235,.2); color:var(--text-muted); padding:.65rem .75rem; text-align:center; font-weight:800; white-space:nowrap; font-size:.7rem; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid var(--glass-border); }
+.sum-table th:nth-child(1),.sum-table th:nth-child(2),.sum-table th:nth-child(3),.sum-table th:nth-child(4){text-align:left}
+.sum-table td{padding:.6rem .75rem;border-bottom:1px solid var(--glass-border);text-align:center;vertical-align:middle}
+.sum-table td:nth-child(1),.sum-table td:nth-child(2),.sum-table td:nth-child(3),.sum-table td:nth-child(4){text-align:left}
+.sum-table tr:last-child td{border-bottom:none}
+.sum-table .sep-sum-row td{height:6px;background:rgba(37,99,235,.06);padding:0;border-color:var(--glass-border)}
+.sum-table .stotal{font-weight:800}
+.sum-table .savg{font-weight:700;color:var(--sky)}
+.sum-table .srank{font-weight:900}
+.srank.r1{color:#f59e0b} .srank.r2{color:var(--text-muted)} .srank.r3{color:#c2783b}
+
+/* Signature */
+.sig-section{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:2rem; padding:1.75rem 1.5rem 1.5rem; border-top:1px solid var(--glass-border); }
+.sig-label{font-size:.72rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.5rem}
+.sig-space{border-bottom:1.5px solid rgba(255,255,255,.25);height:50px;width:100%;margin:.5rem 0 .2rem}
+.sig-caption{font-size:.7rem;color:var(--text-muted);text-align:center;font-weight:600}
+.sig-date-row{display:flex;align-items:center;gap:.5rem;margin-top:.75rem}
+.sig-date-label{font-size:.75rem;font-weight:800;color:var(--text-muted);white-space:nowrap}
+.sig-name-input,.sig-date-input{ border:none; border-bottom:1px solid rgba(255,255,255,.2); padding:3px 0; font-size:.82rem; font-family:'Nunito',sans-serif; font-weight:700; background:transparent; color:var(--text-main); outline:none; }
+.sig-name-input{width:100%}
+.sig-name-input::placeholder,.sig-date-input::placeholder{color:var(--text-muted);font-weight:400}
+.sig-date-input{flex:1;text-align:center}
+
+/* PRINT */
+@media print {
+  body{background:white!important;color:#1e293b!important}
+  body::before{display:none!important}
+  #app-shell,#sidebar,#topbar,.save-bar,.no-print{display:none!important}
+  #print-area{display:block!important}
+  #print-area .glass{background:white!important;border:1px solid #e2e8f0!important}
+  .sum-table th{background:#1a3a8f!important;color:white!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .sig-space{border-color:#333!important}
   .score-a{color:#15803d!important;background:#dcfce7!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .score-b{color:#1d4ed8!important;background:#dbeafe!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .score-c{color:#d97706!important;background:#fef3c7!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .score-f{color:#dc2626!important;background:#fee2e2!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .sep-sum-row td{background:#dde3ef!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
-.print-school-header{text-align:center;padding:14px 0 10px;border-bottom:3px double #0f1f45;margin-bottom:14px}
-.print-school-header h1{font-family:'Poppins',sans-serif;font-size:20px;font-weight:900;color:#0f1f45}
-.print-school-header p{font-size:12px;color:#64748b;margin-top:3px}
- 
-/* ══ RESPONSIVE ════════════════════════════════════ */
-@media(max-width:640px){
-  .main{padding:14px}
-  header{padding:0 14px}
-  .header-left h1{font-size:13px}
-  .sig-section{grid-template-columns:1fr;gap:22px}
-  .att-link span{display:none}
+#print-area{display:none}
+
+/* LIGHT MODE */
+body.light{--glass-bg:rgba(255,255,255,0.65);--glass-border:rgba(0,0,0,.1);--text-main:#1e293b;--text-muted:#64748b;color:var(--text-main)}
+body.light::before{background:linear-gradient(160deg,#dbeafe 0%,#eff6ff 50%,#f0f9ff 100%)}
+body.light #sidebar{background:rgba(248,250,252,.92)}
+body.light #topbar{background:rgba(248,250,252,.85)}
+body.light .form-control{background:rgba(0,0,0,.04);color:var(--text-dark);border-color:rgba(0,0,0,.12)}
+body.light td.editable input{background:#dbeafe;color:#1e293b}
+body.light .sig-space{border-color:#666}
+body.light .sig-name-input,body.light .sig-date-input{color:#1e293b;border-color:#999}
+
+/* RESPONSIVE */
+@media(max-width:768px){
+  :root{--sidebar-w:0px}
+  #sidebar{transform:translateX(-260px);width:260px}
+  #sidebar.mobile-open{transform:translateX(0)}
+  #main-content{margin-left:0}
+  #mobile-menu-btn{display:flex!important}
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .sig-section{grid-template-columns:1fr}
 }
+#mobile-menu-btn{display:none;background:none;border:none;color:var(--text-main);font-size:1.2rem;cursor:pointer}
+#mobile-overlay{display:none;position:fixed;inset:0;z-index:99;background:rgba(0,0,0,.5)}
+#mobile-overlay.show{display:block}
 </style>
 </head>
 <body>
- 
-<!-- ══ LOGIN ══════════════════════════════════════════════ -->
-<div id="loginScreen">
-  <div class="login-box">
+
+<div id="toast-container"></div>
+
+<!-- LOADER -->
+<div id="loader">
+  <div class="loader-ring"></div>
+  <p>Loading BD/Hindu College Welimada — Marks...</p>
+</div>
+
+<!-- LOGIN -->
+<div id="page-login" class="hidden">
+  <div class="login-card glass">
     <div class="login-logo">
-      <img src="whc.png" alt="School Logo"
-           onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>🏫</text></svg>'"/>
+      <img src="whc.png" alt="School Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>🏫</text></svg>'"/>
+      <h1>BD/Hindu College<br>Welimada</h1>
+      <p>Marks Schedule System</p>
     </div>
-    <h2>BD/Hindu College<br>Welimada</h2>
-    <p>Marks Schedule System</p>
-    <div class="login-field">
-      <label>Username</label>
-      <input type="text" id="usernameInput" placeholder="principal@whc.lk" autocomplete="username"/>
+    <div class="input-group">
+      <label><i class="fas fa-user"></i> Username</label>
+      <input type="text" id="login-user" class="form-control" placeholder="principal@whc.lk" autocomplete="username"/>
     </div>
-    <div class="login-field">
-      <label>Password</label>
-      <input type="password" id="passwordInput" placeholder="••••••••" autocomplete="current-password"/>
+    <div class="input-group">
+      <label><i class="fas fa-lock"></i> Password</label>
+      <div style="position:relative;">
+        <input type="password" id="login-pass" class="form-control" placeholder="••••••••" autocomplete="current-password" style="padding-right:2.8rem;"/>
+        <button onclick="MARKS.togglePwd()" style="position:absolute;right:.75rem;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:.9rem;" id="pwd-eye"><i class="fas fa-eye"></i></button>
+      </div>
     </div>
-    <button class="login-btn" onclick="doLogin()">Sign In →</button>
-    <div class="login-error" id="loginError">
-      <i class="fas fa-exclamation-circle"></i> Wrong username or password.
+    <div id="login-error" style="display:none;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:.65rem 1rem;font-size:.83rem;color:#f87171;margin-bottom:.75rem;">
+      <i class="fas fa-exclamation-circle"></i> Invalid username or password.
     </div>
-    <div class="login-link">
+    <button class="btn btn-primary login-btn" onclick="MARKS.login()">
+      <i class="fas fa-sign-in-alt"></i> Sign In
+    </button>
+    <p class="text-center mt-4 text-sm" style="color:var(--text-muted);">
       <i class="fas fa-link"></i> Also use the
-      <a href="index.html"><i class="fas fa-clipboard-check"></i> Attendance System</a>
+      <a href="index.html" style="color:var(--sky);font-weight:700;text-decoration:none;"><i class="fas fa-clipboard-check"></i> Attendance System</a>
       with the same login.
+    </p>
+  </div>
+</div>
+
+<!-- APP SHELL -->
+<div id="app-shell" class="hidden">
+  <div id="mobile-overlay" onclick="MARKS.closeMobile()"></div>
+
+  <!-- SIDEBAR -->
+  <nav id="sidebar">
+    <div class="sidebar-header">
+      <img src="whc.png" alt="Logo" class="sidebar-logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>🏫</text></svg>'"/>
+      <div class="sidebar-title">
+        <h2>BD/Hindu College</h2>
+        <p>Welimada</p>
+      </div>
+      <button id="collapse-btn" onclick="MARKS.toggleSidebar()"><i class="fas fa-bars"></i></button>
+    </div>
+    <div class="sidebar-user">
+      <div class="user-avatar" id="sb-avatar">P</div>
+      <div class="user-info">
+        <h4 id="sb-name">Principal</h4>
+        <p id="sb-role">Administrator</p>
+      </div>
+    </div>
+    <div class="sidebar-nav" id="sidebar-nav">
+      <div class="nav-section-title">Marks Entry</div>
+      <div id="class-nav-items"></div>
+      <div class="nav-section-title" style="margin-top:.5rem;">Summary & Print</div>
+      <div id="summary-nav-items"></div>
+    </div>
+    <div class="sidebar-footer">
+      <a href="index.html" class="nav-item" style="text-decoration:none;color:inherit;border:1px solid rgba(6,182,212,.3);background:rgba(6,182,212,.08);margin-bottom:4px;">
+        <i class="fas fa-clipboard-check" style="color:#67e8f9;"></i>
+        <span style="color:#67e8f9;font-weight:800;">Attendance</span>
+      </a>
+      <div class="nav-item" onclick="MARKS.logout()">
+        <i class="fas fa-sign-out-alt"></i><span>Sign Out</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <div id="main-content">
+    <div id="topbar">
+      <button id="mobile-menu-btn" onclick="MARKS.openMobile()"><i class="fas fa-bars"></i></button>
+      <div id="page-title"><i class="fas fa-chart-bar" style="color:var(--blue-accent);margin-right:.5rem;"></i>Marks Schedule</div>
+      <div class="topbar-actions">
+        <div class="topbar-date" id="topbar-date"></div>
+        <a href="index.html" style="display:inline-flex;align-items:center;gap:6px;background:rgba(6,182,212,.12);border:1px solid rgba(6,182,212,.35);color:#67e8f9;padding:.4rem .75rem;border-radius:8px;font-size:.8rem;font-weight:700;text-decoration:none;white-space:nowrap;">
+          <i class="fas fa-clipboard-check"></i><span>Attendance</span>
+        </a>
+        <button onclick="MARKS.toggleTheme()" title="Toggle Theme" style="background:none;border:1px solid var(--glass-border);color:var(--text-muted);cursor:pointer;padding:.45rem .65rem;border-radius:8px;font-size:.85rem;" id="theme-btn"><i class="fas fa-moon"></i></button>
+        <button id="saveBtn" onclick="saveData()" style="display:none;" class="btn btn-success btn-sm"><i class="fas fa-save"></i> Save</button>
+      </div>
+    </div>
+    <div class="page-content" id="page-content">
+      <!-- content injected here -->
     </div>
   </div>
 </div>
- 
-<!-- ══ APP ════════════════════════════════════════════════ -->
-<div id="app">
-  <header>
-    <div class="header-left">
-      <h1><i class="fas fa-school" style="opacity:.7;margin-right:6px"></i>BD/Hindu College Welimada — Marks</h1>
-      <a class="att-link" href="index.html">
-        <i class="fas fa-clipboard-check"></i>
-        <span>Attendance System</span>
-      </a>
-    </div>
-    <div class="header-right">
-      <span class="user-badge" id="userBadge"></span>
-      <button class="logout-btn" onclick="doLogout()">
-        <i class="fas fa-sign-out-alt"></i> Logout
-      </button>
-    </div>
-  </header>
- 
-  <div class="main">
- 
-    <!-- Loading state -->
-    <div id="loadingBar">
-      <div class="spinner"></div>
-      <span>Loading students from Firestore…</span>
-    </div>
- 
-    <!-- Tabs -->
-    <div class="tab-section" id="tabSection" style="display:none">
-      <div class="tab-section-label">📚 Grade / Class</div>
-      <div class="grade-tabs" id="gradeTabs"></div>
-      <div class="grade-tabs" id="sumTabs" style="margin-top:6px"></div>
-    </div>
- 
-    <!-- Marks entry view -->
-    <div id="mainView" style="display:none">
-      <div id="gradeContent"></div>
-      <div id="adminPanel"></div>
-    </div>
- 
-    <!-- Summary / Print view -->
-    <div id="summaryView">
-      <div class="print-school-header">
-        <h1>🏫 BD/Hindu College Welimada — Student Results</h1>
-        <p id="printDateLine"></p>
-      </div>
-      <div class="sum-topbar no-print">
-        <h2>📊 Summary — Print Ready</h2>
-        <div class="sum-actions">
-          <button class="print-btn" onclick="window.print()">
-            <i class="fas fa-print"></i> Print Summary
-          </button>
-          <button class="back-btn" onclick="backToMarks()">
-            ← Back to Marks
-          </button>
-        </div>
-      </div>
-      <div id="summaryContent"></div>
-    </div>
- 
-  </div><!-- /main -->
-</div><!-- /app -->
- 
-<!-- Save bar -->
+
+<!-- PRINT AREA (hidden, shown only during print) -->
+<div id="print-area">
+  <div style="text-align:center;padding:1rem 0 .75rem;border-bottom:3px double #1a3a8f;margin-bottom:1rem;">
+    <h1 style="font-family:'Poppins',sans-serif;font-size:18px;font-weight:900;color:#0f1f45;">🏫 BD/Hindu College Welimada</h1>
+    <p id="print-date-line" style="font-size:12px;color:#64748b;margin-top:3px;"></p>
+  </div>
+  <div id="print-content"></div>
+</div>
+
+<!-- Save status -->
 <div class="save-bar">
   <div class="save-status" id="saveStatus"></div>
-  <button class="save-btn" id="saveBtn" onclick="saveData()" style="display:none">
-    <i class="fas fa-save"></i> Save Changes
-  </button>
 </div>
- 
-<!-- Modal container -->
-<div id="modalContainer"></div>
- 
+
+<!-- Modal -->
+<div id="modal-container"></div>
+
 <script>
-// ════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 //  STATE
-// ════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 let currentUser = null;
 let currentGrade = null;
-let marksData = {};   // marksData[classId][studentId][subject] = value
+let marksData = {};
 let hasUnsaved = false;
-let GRADES = {};      // loaded from Firestore: { classId: { name, students:[{id,name,indexNo,gender}], subjects:[] } }
-let CLASS_SUBJECTS = {};  // classId -> [subject strings]
- 
-// ════════════════════════════════════════════════════════
-//  FIREBASE WAIT
-// ════════════════════════════════════════════════════════
+let GRADES = {};
+
+// ════════════════════════════════════════════════════════════════
+//  FIREBASE INIT
+// ════════════════════════════════════════════════════════════════
 window.addEventListener("firebaseReady", () => {
+  document.getElementById("loader").classList.add("hidden");
   const session = window.AUTH.getSession();
   if (session) {
     currentUser = session;
-    document.getElementById("loginScreen").style.display = "none";
-    document.getElementById("app").style.display = "block";
-    document.getElementById("userBadge").textContent = "👤 " + session.name;
-    initApp();
+    showApp();
+    initMarks();
   } else {
-    document.getElementById("loginScreen").style.display = "flex";
-    document.getElementById("loadingBar").style.display = "none";
+    document.getElementById("page-login").classList.remove("hidden");
   }
 });
-// Fallback: if no Firebase config, just show login
 setTimeout(() => {
   if (!window.FB) {
-    document.getElementById("loadingBar").style.display = "none";
-    document.getElementById("loginScreen").style.display = "flex";
+    document.getElementById("loader").classList.add("hidden");
+    document.getElementById("page-login").classList.remove("hidden");
   }
 }, 3000);
- 
-// ════════════════════════════════════════════════════════
-//  AUTH
-// ════════════════════════════════════════════════════════
-function doLogin() {
-  const u = document.getElementById("usernameInput").value.trim();
-  const p = document.getElementById("passwordInput").value;
-  document.getElementById("loginError").style.display = "none";
-  const user = window.AUTH.login(u, p);
-  if (!user) {
-    document.getElementById("loginError").style.display = "block"; return;
+
+// ════════════════════════════════════════════════════════════════
+//  APP CONTROLLER
+// ════════════════════════════════════════════════════════════════
+const MARKS = {
+  sidebarCollapsed: false,
+  darkMode: localStorage.getItem("whc_theme") !== "light",
+
+  login() {
+    const u = document.getElementById("login-user").value.trim();
+    const p = document.getElementById("login-pass").value;
+    document.getElementById("login-error").style.display = "none";
+    if (!u || !p) { document.getElementById("login-error").style.display = "block"; return; }
+    const user = window.AUTH.login(u, p);
+    if (!user) { document.getElementById("login-error").style.display = "block"; return; }
+    currentUser = user;
+    showApp();
+    initMarks();
+    toast("Welcome back, " + user.name + "!", "success");
+  },
+
+  togglePwd() {
+    const i = document.getElementById("login-pass");
+    const e = document.getElementById("pwd-eye");
+    i.type = i.type === "password" ? "text" : "password";
+    e.innerHTML = i.type === "password" ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
+  },
+
+  logout() {
+    if (hasUnsaved && !confirm("You have unsaved marks. Logout?")) return;
+    window.AUTH.clearSession();
+    currentUser = null; GRADES = {}; marksData = {};
+    document.getElementById("app-shell").classList.add("hidden");
+    document.getElementById("page-login").classList.remove("hidden");
+    document.getElementById("login-pass").value = "";
+    toast("Signed out", "info");
+  },
+
+  toggleSidebar() {
+    this.sidebarCollapsed = !this.sidebarCollapsed;
+    document.getElementById("sidebar").classList.toggle("collapsed", this.sidebarCollapsed);
+  },
+  openMobile() {
+    document.getElementById("sidebar").classList.add("mobile-open");
+    document.getElementById("mobile-overlay").classList.add("show");
+  },
+  closeMobile() {
+    document.getElementById("sidebar").classList.remove("mobile-open");
+    document.getElementById("mobile-overlay").classList.remove("show");
+  },
+
+  toggleTheme() {
+    this.darkMode = !this.darkMode;
+    document.body.classList.toggle("light", !this.darkMode);
+    localStorage.setItem("whc_theme", this.darkMode ? "dark" : "light");
+    document.getElementById("theme-btn").innerHTML = this.darkMode ? '<i class="fas fa-moon"></i>' : '<i class="fas fa-sun"></i>';
+  },
+
+  updateClock() {
+    const now = new Date();
+    const el = document.getElementById("topbar-date");
+    if (el) el.textContent = now.toLocaleDateString("en-GB", { weekday:"short", day:"2-digit", month:"short", year:"numeric" });
   }
-  currentUser = user;
-  document.getElementById("loginScreen").style.display = "none";
-  document.getElementById("app").style.display = "block";
-  document.getElementById("userBadge").textContent = "👤 " + user.name;
-  initApp();
+};
+
+function showApp() {
+  document.getElementById("page-login").classList.add("hidden");
+  document.getElementById("app-shell").classList.remove("hidden");
+  const p = currentUser;
+  document.getElementById("sb-name").textContent = p.name || "User";
+  document.getElementById("sb-role").textContent = p.role === "principal" ? "Principal (Admin)" : "Teacher";
+  document.getElementById("sb-avatar").textContent = (p.name || "U")[0].toUpperCase();
+  if (!MARKS.darkMode) document.body.classList.add("light");
+  MARKS.updateClock();
+  setInterval(() => MARKS.updateClock(), 60000);
 }
-document.getElementById("passwordInput").addEventListener("keydown", e => { if (e.key==="Enter") doLogin(); });
-document.getElementById("usernameInput").addEventListener("keydown", e => { if (e.key==="Enter") document.getElementById("passwordInput").focus(); });
- 
-function doLogout() {
-  if (hasUnsaved && !confirm("You have unsaved marks. Logout anyway?")) return;
-  window.AUTH.clearSession();
-  currentUser = null;
-  document.getElementById("loginScreen").style.display = "flex";
-  document.getElementById("app").style.display = "none";
-  document.getElementById("loginError").style.display = "none";
-  document.getElementById("usernameInput").value = "";
-  document.getElementById("passwordInput").value = "";
-}
- 
-function canAccess(classId) {
-  if (!currentUser) return false;
-  if (currentUser.role === "principal") return true;
-  const ac = currentUser.assignedClasses || [];
-  return ac.length === 0 || ac.includes(classId);
-}
- 
-// ════════════════════════════════════════════════════════
-//  INIT — load classes + students from Firestore
-// ════════════════════════════════════════════════════════
-async function initApp() {
-  document.getElementById("loadingBar").style.display = "flex";
-  document.getElementById("tabSection").style.display = "none";
-  document.getElementById("mainView").style.display = "none";
- 
+
+// ════════════════════════════════════════════════════════════════
+//  INIT — load from Firestore
+// ════════════════════════════════════════════════════════════════
+async function initMarks() {
+  document.getElementById("page-content").innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:center;padding:4rem;gap:1rem;color:var(--text-muted);">
+      <div class="loader-ring" style="width:32px;height:32px;border-width:3px;"></div>
+      <span>Loading students from Firestore…</span>
+    </div>`;
   try {
     const { db, collection, getDocs } = window.FB;
     const [classSnap, studentSnap] = await Promise.all([
       getDocs(collection(db, "classes")),
       getDocs(collection(db, "students"))
     ]);
- 
-    // Build class list
     const classMap = {};
     classSnap.forEach(d => { classMap[d.id] = { ...d.data(), id: d.id }; });
- 
-    // Group students by class
     const studentsByClass = {};
     studentSnap.forEach(d => {
       const s = { id: d.id, ...d.data() };
       if (!studentsByClass[s.classId]) studentsByClass[s.classId] = [];
       studentsByClass[s.classId].push(s);
     });
- 
-    // Sort students by name within each class
-    Object.keys(studentsByClass).forEach(cid => {
-      studentsByClass[cid].sort((a,b) => (a.name||"").localeCompare(b.name||""));
-    });
- 
-    // Build GRADES object
+    Object.keys(studentsByClass).forEach(cid => studentsByClass[cid].sort((a,b) => (a.name||"").localeCompare(b.name||"")));
+
     GRADES = {};
     Object.keys(classMap).sort().forEach(cid => {
-      const cls = classMap[cid];
-      const students = studentsByClass[cid] || [];
-      if (students.length === 0 && !canAccess(cid)) return;
-      GRADES[cid] = {
-        name: cls.name || cid,
-        id: cid,
-        students: students,
-        subjects: loadSubjectsForClass(cid)
-      };
+      if (!canAccess(cid) && !(studentsByClass[cid]?.length)) return;
+      GRADES[cid] = { name: classMap[cid].name || cid, id: cid, students: studentsByClass[cid] || [], subjects: loadSubjectsForClass(cid) };
     });
- 
-    // Load marks from localStorage
     Object.keys(GRADES).forEach(cid => loadMarks(cid));
- 
-    document.getElementById("loadingBar").style.display = "none";
-    document.getElementById("tabSection").style.display = "block";
-    buildTabs();
-    if (currentUser.role === "principal") renderAdminPanel();
-    else document.getElementById("adminPanel").innerHTML = "";
-    const accessibles = Object.keys(GRADES).filter(cid => canAccess(cid));
-    if (accessibles.length > 0) showGrade(accessibles[0]);
+    buildSidebarNav();
+    const accessible = Object.keys(GRADES).filter(cid => canAccess(cid));
+    if (accessible.length > 0) showGrade(accessible[0]);
     else {
-      document.getElementById("mainView").style.display = "block";
-      document.getElementById("gradeContent").innerHTML =
-        `<div style="text-align:center;padding:3rem;color:var(--gray);">
-          <i class="fas fa-lock" style="font-size:2rem;opacity:.3;display:block;margin-bottom:.75rem;"></i>
-          <p>No classes assigned to your account.</p>
-        </div>`;
+      document.getElementById("page-content").innerHTML = `<div class="empty-state"><i class="fas fa-lock"></i><p>No classes assigned to your account.</p></div>`;
     }
   } catch(e) {
-    document.getElementById("loadingBar").innerHTML =
-      `<div style="text-align:center;color:var(--red);padding:2rem;">
-        <i class="fas fa-exclamation-triangle" style="font-size:2rem;display:block;margin-bottom:.75rem;"></i>
-        <strong>Firestore not connected.</strong><br>
-        <span style="font-size:.85rem;color:var(--gray);">Paste your Firebase config at the top of this file, then reload.</span>
+    document.getElementById("page-content").innerHTML = `
+      <div class="glass card" style="text-align:center;padding:3rem;margin-top:2rem;">
+        <i class="fas fa-database" style="font-size:2.5rem;color:var(--warning);opacity:.7;display:block;margin-bottom:1rem;"></i>
+        <p style="font-weight:800;font-size:1rem;margin-bottom:.5rem;">Firestore not connected</p>
+        <p style="color:var(--text-muted);font-size:.85rem;">Paste your Firebase config at the top of this file, then reload.</p>
       </div>`;
   }
 }
- 
-// ════════════════════════════════════════════════════════
-//  SUBJECTS — stored per class in localStorage
-// ════════════════════════════════════════════════════════
+
+function canAccess(cid) {
+  if (!currentUser) return false;
+  if (currentUser.role === "principal") return true;
+  const ac = currentUser.assignedClasses || [];
+  return ac.length === 0 || ac.includes(cid);
+}
+
+// ════════════════════════════════════════════════════════════════
+//  SIDEBAR NAV
+// ════════════════════════════════════════════════════════════════
+function buildSidebarNav() {
+  const accessible = Object.keys(GRADES).filter(cid => canAccess(cid));
+  const classNav   = document.getElementById("class-nav-items");
+  const sumNav     = document.getElementById("summary-nav-items");
+  classNav.innerHTML = ""; sumNav.innerHTML = "";
+
+  accessible.forEach(cid => {
+    const g = GRADES[cid];
+    const el = document.createElement("div");
+    el.className = "nav-item"; el.id = "nav-" + cid;
+    el.innerHTML = `<i class="fas fa-table"></i><span>${g.name}</span>`;
+    el.onclick = () => showGrade(cid);
+    classNav.appendChild(el);
+  });
+  accessible.forEach(cid => {
+    const g = GRADES[cid];
+    const el = document.createElement("div");
+    el.className = "nav-item"; el.id = "snav-" + cid;
+    el.innerHTML = `<i class="fas fa-chart-bar" style="color:var(--warning);"></i><span style="color:var(--warning);">${g.name}</span>`;
+    el.onclick = () => showSummary(cid);
+    sumNav.appendChild(el);
+  });
+}
+
+function setActiveNav(cid, isSummary) {
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+  const el = document.getElementById(isSummary ? "snav-"+cid : "nav-"+cid);
+  if (el) el.classList.add("active");
+}
+
+// ════════════════════════════════════════════════════════════════
+//  SUBJECTS
+// ════════════════════════════════════════════════════════════════
 const DEFAULT_SUBJECTS_9_11 = ["Religion","Tamil","English","Maths","Science","History","B1","B2","B3"];
 const DEFAULT_SUBJECTS_6_8  = ["Religion","Tamil","Maths","Science","English","History","Civics","Art/Dance","PTS","Sinhala","ICT","Health","Geography"];
- 
+
 function defaultSubjects(cid) {
   const name = (GRADES[cid]?.name || cid).toLowerCase();
   if (name.includes("11")||name.includes("10")||name.includes("9")||name.includes("09")) return DEFAULT_SUBJECTS_9_11;
   return DEFAULT_SUBJECTS_6_8;
 }
 function loadSubjectsForClass(cid) {
-  const stored = localStorage.getItem("whc_subjects_" + cid);
-  if (stored) return JSON.parse(stored);
-  return defaultSubjects(cid);
+  const s = localStorage.getItem("whc_subjects_" + cid);
+  return s ? JSON.parse(s) : defaultSubjects(cid);
 }
 function saveSubjectsForClass(cid, subs) {
   localStorage.setItem("whc_subjects_" + cid, JSON.stringify(subs));
   GRADES[cid].subjects = subs;
 }
- 
-// ════════════════════════════════════════════════════════
-//  MARKS — localStorage persistence
-// ════════════════════════════════════════════════════════
-function mkey(cid,sid,sub){ return `marks_${cid}_${sid}_${sub}`; }
- 
+
+// ════════════════════════════════════════════════════════════════
+//  MARKS PERSISTENCE
+// ════════════════════════════════════════════════════════════════
+function mkey(cid, sid, sub) { return `marks_${cid}_${sid}_${sub}`; }
+
 function loadMarks(cid) {
   const g = GRADES[cid];
   if (!marksData[cid]) marksData[cid] = {};
@@ -795,175 +676,130 @@ function loadMarks(cid) {
     });
   });
 }
- 
+
 function saveData() {
   Object.keys(marksData).forEach(cid =>
     Object.keys(marksData[cid]).forEach(sid =>
-      Object.keys(marksData[cid][sid]).forEach(sub => {
-        localStorage.setItem(mkey(cid,sid,sub), marksData[cid][sid][sub]);
-      })
+      Object.keys(marksData[cid][sid]).forEach(sub =>
+        localStorage.setItem(mkey(cid,sid,sub), marksData[cid][sid][sub])
+      )
     )
   );
   hasUnsaved = false;
   document.getElementById("saveBtn").style.display = "none";
   showStatus("✅ Saved!", "ok");
 }
- 
+
 function showStatus(msg, type) {
   const el = document.getElementById("saveStatus");
-  el.textContent = msg;
-  el.className = "save-status show " + type;
+  el.textContent = msg; el.className = "save-status show " + type;
   setTimeout(() => el.className = "save-status", 2800);
 }
- 
-// ════════════════════════════════════════════════════════
-//  TABS
-// ════════════════════════════════════════════════════════
-function buildTabs() {
-  const tabs  = document.getElementById("gradeTabs");
-  const sTabs = document.getElementById("sumTabs");
-  tabs.innerHTML = ""; sTabs.innerHTML = "";
-  const accessible = Object.keys(GRADES).filter(cid => canAccess(cid));
-  if (accessible.length === 0) return;
- 
-  accessible.forEach(cid => {
-    const g = GRADES[cid];
-    const btn = document.createElement("button");
-    btn.className = "grade-tab"; btn.textContent = g.name; btn.dataset.cid = cid;
-    btn.onclick = () => showGrade(cid);
-    tabs.appendChild(btn);
-  });
-  accessible.forEach(cid => {
-    const g = GRADES[cid];
-    const btn = document.createElement("button");
-    btn.className = "grade-tab sum-tab"; btn.textContent = "📊 " + g.name; btn.dataset.sum = cid;
-    btn.onclick = () => showSummary(cid);
-    sTabs.appendChild(btn);
-  });
-}
- 
-function setActiveTab(cid, isSummary) {
-  document.querySelectorAll(".grade-tab").forEach(t => {
-    if (!isSummary) t.classList.toggle("active", t.dataset.cid === cid);
-    else t.classList.toggle("active", t.dataset.sum === cid);
-  });
-}
- 
-// ════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════
 //  MARKS TABLE
-// ════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 function showGrade(cid) {
   currentGrade = cid;
-  setActiveTab(cid, false);
-  document.getElementById("mainView").style.display = "block";
-  document.getElementById("summaryView").style.display = "none";
+  setActiveNav(cid, false);
+  document.getElementById("page-title").innerHTML = `<i class="fas fa-table" style="color:var(--blue-accent);margin-right:.5rem;"></i>${GRADES[cid].name} — Marks Entry`;
   renderTable(cid);
 }
- 
-function backToMarks() {
-  document.getElementById("mainView").style.display = "block";
-  document.getElementById("summaryView").style.display = "none";
-  if (currentGrade) showGrade(currentGrade);
-}
- 
-function esc(s){ return String(s).replace(/'/g,"\\'"); }
-function getScoreClass(v){
+
+function esc(s) { return String(s).replace(/'/g, "\\'"); }
+function getScoreClass(v) {
   const n = parseFloat(v);
-  if (isNaN(n)||v==="") return "";
+  if (isNaN(n)||v==="") return "empty";
   if (n>=75) return "score-a";
   if (n>=55) return "score-b";
   if (n>=35) return "score-c";
   return "score-f";
 }
- 
+
 function renderTable(cid) {
   const g = GRADES[cid];
   const editable = canAccess(cid);
-  const count = g.students.length;
-  const pc = document.getElementById("gradeContent");
- 
-  let html = `<div class="card">
-    <div class="card-header">
-      <h3>📋 ${g.name}</h3>
-      <div class="card-header-right">
-        <span class="card-meta">${count} students · ${g.subjects.length} subjects${editable?" · ✏️ Editable":""}</span>
-        ${editable ? `<button class="subject-btn" onclick="manageSubjects('${esc(cid)}')">
-          <i class="fas fa-book"></i> Subjects
-        </button>` : ""}
-        <button class="summary-btn" onclick="showSummary('${esc(cid)}')">
-          📊 Summary & Print
-        </button>
+  const pc = document.getElementById("page-content");
+
+  const boys  = g.students.filter(s => s.gender === "Male");
+  const girls = g.students.filter(s => s.gender !== "Male");
+  const showGroups = boys.length > 0 && girls.length > 0;
+  const groups = showGroups
+    ? [{ label:"👦 Boys", students:boys }, { label:"👧 Girls", students:girls }]
+    : [{ label:"", students:g.students }];
+
+  let html = `
+    <div class="section-header">
+      <h2><i class="fas fa-table" style="color:var(--blue-accent);margin-right:.5rem;"></i>${g.name} <span style="color:var(--text-muted);font-weight:600;font-size:1rem;">(${g.students.length} students)</span></h2>
+      <div class="flex gap-3 items-center" style="flex-wrap:wrap;">
+        ${editable ? `<button class="btn btn-outline btn-sm" onclick="manageSubjects('${esc(cid)}')"><i class="fas fa-book"></i> Edit Subjects</button>` : ""}
+        <button class="btn btn-warning btn-sm" onclick="showSummary('${esc(cid)}')"><i class="fas fa-chart-bar"></i> Summary & Print</button>
       </div>
     </div>
-    <div class="table-wrap"><table>
-      <thead><tr>
-        <th>No.</th><th>Index</th><th>Name</th>`;
-  g.subjects.forEach(s => html += `<th>${s}</th>`);
-  html += `<th>Total</th><th>Avg</th><th>Rank</th>
-      </tr></thead><tbody>`;
- 
-  // Separate boys and girls
-  const boys   = g.students.filter(s => s.gender === "Male");
-  const girls  = g.students.filter(s => s.gender !== "Male");
-  const groups = [];
-  if (boys.length)  groups.push({ label: "👦 Boys", students: boys });
-  if (girls.length) groups.push({ label: "👧 Girls", students: girls });
-  // If no gender data, just show all
-  const showGroups = boys.length > 0 && girls.length > 0;
- 
+
+    <div class="glass card" style="margin-bottom:1rem;padding:.7rem 1rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;">
+      <span style="font-size:.78rem;color:var(--text-muted);">Score colours:</span>
+      <span class="score-val score-a">≥75 A</span>
+      <span class="score-val score-b">≥55 B</span>
+      <span class="score-val score-c">≥35 C</span>
+      <span class="score-val score-f">&lt;35 F</span>
+      ${editable ? `<span style="font-size:.78rem;color:var(--text-muted);margin-left:auto;"><i class="fas fa-mouse-pointer"></i> Click any score to edit</span>` : ""}
+    </div>
+
+    <div class="glass card" style="padding:0;">
+      <div class="table-wrapper"><table>
+        <thead><tr>
+          <th>#</th><th>Index</th><th>Name</th>`;
+  g.subjects.forEach(s => html += `<th style="font-size:.7rem;">${s}</th>`);
+  html += `<th>Total</th><th>Avg</th><th>Rank</th></tr></thead><tbody>`;
+
   let rowNo = 1;
-  const allStudents = showGroups ? [...boys, ...girls] : g.students;
- 
-  if (showGroups) {
-    groups.forEach(grp => {
-      html += `<tr class="sep-label"><td colspan="${3+g.subjects.length+3}">${grp.label}</td></tr>`;
-      grp.students.forEach(s => {
-        html += renderStudentRow(s, cid, rowNo++, g.subjects, editable);
-      });
-    });
-  } else {
-    g.students.forEach(s => {
+  groups.forEach(grp => {
+    if (grp.label) {
+      html += `<tr class="sep-label-row"><td colspan="${3+g.subjects.length+3}">${grp.label}</td></tr>`;
+    }
+    grp.students.forEach(s => {
       html += renderStudentRow(s, cid, rowNo++, g.subjects, editable);
     });
-  }
- 
+  });
+
   html += `</tbody></table></div></div>`;
   pc.innerHTML = html;
   computeRanks(cid);
 }
- 
+
 function renderStudentRow(s, cid, rowNo, subjects, editable) {
   const marks = marksData[cid]?.[s.id] || {};
   let total = 0, cnt = 0;
-  subjects.forEach(sub => { const v = parseFloat(marks[sub]); if (!isNaN(v)){ total += v; cnt++; } });
+  subjects.forEach(sub => { const v = parseFloat(marks[sub]); if (!isNaN(v)){ total+=v; cnt++; } });
   const avg = cnt > 0 ? (total/cnt).toFixed(1) : "";
- 
+
   let html = `<tr>
-    <td style="color:var(--gray);font-size:12px;">${rowNo}</td>
-    <td style="font-size:12px;color:var(--gray);">${s.indexNo||"—"}</td>
-    <td><strong style="font-size:13px;">${s.name||"—"}</strong></td>`;
+    <td style="color:var(--text-muted);font-size:.75rem;">${rowNo}</td>
+    <td style="font-size:.78rem;color:var(--text-muted);">${s.indexNo||"—"}</td>
+    <td><strong style="font-size:.88rem;">${s.name||"—"}</strong></td>`;
   subjects.forEach(sub => {
-    const v = marks[sub] || ""; const sc = getScoreClass(v);
+    const v = marks[sub]||""; const sc = getScoreClass(v);
     if (editable) {
       html += `<td class="editable" onclick="editCell(this,'${esc(cid)}','${esc(s.id)}','${esc(sub)}')">
-        <span class="score-val ${sc}${!v?" empty":""}">${v||"—"}</span></td>`;
+        <span class="score-val ${sc}">${v||"—"}</span></td>`;
     } else {
-      html += `<td><span class="score-val ${sc}${!v?" empty":""}">${v||"—"}</span></td>`;
+      html += `<td><span class="score-val ${sc}">${v||"—"}</span></td>`;
     }
   });
+  const rSafe = cid.replace(/[^a-z0-9]/gi,"_");
   html += `<td class="total-cell">${cnt>0?total:"—"}</td>
     <td class="avg-cell">${avg||"—"}</td>
-    <td class="rank-cell" id="rk_${cid.replace(/[^a-z0-9]/gi,"_")}_${s.id}">—</td></tr>`;
+    <td class="rank-num" id="rk_${rSafe}_${s.id}">—</td></tr>`;
   return html;
 }
- 
+
 function editCell(td, cid, sid, subject) {
   if (td.querySelector("input")) return;
   const cur = marksData[cid]?.[sid]?.[subject] || "";
   td.innerHTML = `<input type="number" min="0" max="100" value="${cur}"
     onblur="commitCell(this,'${esc(cid)}','${esc(sid)}','${esc(subject)}')"
-    onkeydown="cellKey(event,this,'${esc(cid)}','${esc(sid)}','${esc(subject)}')"
-    style="width:60px"/>`;
+    onkeydown="cellKey(event,this,'${esc(cid)}','${esc(sid)}','${esc(subject)}')" />`;
   const inp = td.querySelector("input"); inp.focus(); inp.select();
 }
 function commitCell(input, cid, sid, subject) {
@@ -973,226 +809,218 @@ function commitCell(input, cid, sid, subject) {
   marksData[cid][sid][subject] = val;
   hasUnsaved = true;
   document.getElementById("saveBtn").style.display = "flex";
-  const td = input.parentElement; const sc = getScoreClass(val);
-  td.innerHTML = `<span class="score-val ${sc}${!val?" empty":""}">${val||"—"}</span>`;
+  const td = input.parentElement;
+  td.innerHTML = `<span class="score-val ${getScoreClass(val)}">${val||"—"}</span>`;
   td.onclick = () => editCell(td, cid, sid, subject);
-  updateRowTotals(cid, sid);
   computeRanks(cid);
 }
 function cellKey(e, input, cid, sid, subject) {
   if (e.key==="Enter"||e.key==="Tab"){ e.preventDefault(); commitCell(input,cid,sid,subject); }
   else if (e.key==="Escape") commitCell(input,cid,sid,subject);
 }
-function updateRowTotals(cid, sid) {
-  const g = GRADES[cid]; const marks = marksData[cid]?.[sid] || {};
-  let total = 0, cnt = 0;
-  g.subjects.forEach(sub => { const v = parseFloat(marks[sub]); if (!isNaN(v)){total+=v;cnt++;} });
-  document.querySelectorAll("#gradeContent tbody tr:not(.separator):not(.sep-label)").forEach(row => {
-    const cells = row.querySelectorAll("td");
-    if (!cells[1]) return;
-    // find row by rank cell id
-    const rkCell = row.querySelector(`[id^="rk_"]`);
-    if (rkCell && rkCell.id.endsWith("_"+sid)) {
-      const nc = g.subjects.length;
-      cells[nc+3].textContent = cnt>0?total:"—";
-      cells[nc+4].textContent = cnt>0?(total/cnt).toFixed(1):"—";
-    }
-  });
-}
 function computeRanks(cid) {
-  const g = GRADES[cid]; const scores = [];
-  g.students.forEach(s => {
+  const g = GRADES[cid];
+  const scores = g.students.map(s => {
     const marks = marksData[cid]?.[s.id] || {};
-    let total = 0, cnt = 0;
-    g.subjects.forEach(sub => { const v = parseFloat(marks[sub]); if (!isNaN(v)){total+=v;cnt++;} });
-    scores.push({ id: s.id, total: cnt>0?total:-1 });
+    let total=0,cnt=0;
+    g.subjects.forEach(sub => { const v=parseFloat(marks[sub]); if(!isNaN(v)){total+=v;cnt++;} });
+    return { id:s.id, total:cnt>0?total:-1 };
   });
   const sorted = [...scores].filter(x=>x.total>=0).sort((a,b)=>b.total-a.total);
   scores.forEach(s => {
     const safe = cid.replace(/[^a-z0-9]/gi,"_");
     const el = document.getElementById(`rk_${safe}_${s.id}`);
     if (!el) return;
-    if (s.total < 0){ el.textContent="—"; return; }
-    el.textContent = sorted.findIndex(x=>x.id===s.id)+1;
+    if (s.total<0){ el.textContent="—"; el.className="rank-num"; return; }
+    const rank = sorted.findIndex(x=>x.id===s.id)+1;
+    el.textContent = rank===1?"🥇 1":rank===2?"🥈 2":rank===3?"🥉 3":rank;
+    el.className = `rank-num rank-${rank<=3?rank:""}`;
   });
 }
- 
-// ════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════
 //  MANAGE SUBJECTS MODAL
-// ════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 function manageSubjects(cid) {
   const g = GRADES[cid];
   const overlay = document.createElement("div");
-  overlay.className = "overlay";
+  overlay.className = "modal-overlay";
   overlay.innerHTML = `
-    <div class="modal-box">
+    <div class="glass modal">
       <div class="modal-header">
-        <h3>📚 Subjects — ${g.name}</h3>
-        <button class="modal-close" onclick="this.closest('.overlay').remove()"><i class="fas fa-times"></i></button>
+        <h3><i class="fas fa-book" style="color:var(--cyan);margin-right:.5rem;"></i>Edit Subjects — ${g.name}</h3>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()"><i class="fas fa-times"></i></button>
       </div>
-      <p style="font-size:12.5px;color:var(--gray);margin-bottom:14px;">Edit the subject list. One subject per line.</p>
-      <textarea id="subj-ta" style="width:100%;height:220px;padding:10px 12px;border:2px solid var(--border);border-radius:10px;font-size:13px;font-family:inherit;resize:vertical;line-height:1.8;">${g.subjects.join("\n")}</textarea>
+      <p style="font-size:.83rem;color:var(--text-muted);margin-bottom:1rem;">One subject per line. Changes apply immediately.</p>
+      <textarea id="subj-ta" class="form-control" rows="12" style="resize:vertical;line-height:1.9;">${g.subjects.join("\n")}</textarea>
       <div class="modal-footer">
-        <button class="btn btn-outline" onclick="this.closest('.overlay').remove()">Cancel</button>
+        <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
         <button class="btn btn-primary" onclick="saveSubjects('${esc(cid)}')"><i class="fas fa-save"></i> Save Subjects</button>
       </div>
     </div>`;
   overlay.addEventListener("click", e => { if (e.target===overlay) overlay.remove(); });
-  document.getElementById("modalContainer").appendChild(overlay);
-  setTimeout(()=>document.getElementById("subj-ta")?.focus(),100);
+  document.getElementById("modal-container").appendChild(overlay);
+  setTimeout(() => document.getElementById("subj-ta")?.focus(), 100);
 }
 function saveSubjects(cid) {
   const ta = document.getElementById("subj-ta");
   const subs = ta.value.split("\n").map(s=>s.trim()).filter(Boolean);
-  if (subs.length === 0) { alert("Please enter at least one subject."); return; }
+  if (!subs.length) { toast("Please enter at least one subject","warning"); return; }
   saveSubjectsForClass(cid, subs);
   loadMarks(cid);
-  document.querySelector(".overlay")?.remove();
+  document.querySelector(".modal-overlay")?.remove();
   renderTable(cid);
   showStatus("✅ Subjects updated!", "ok");
 }
- 
-// ════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════
 //  SUMMARY & PRINT
-// ════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 function showSummary(cid) {
   currentGrade = cid;
-  setActiveTab(cid, true);
-  document.getElementById("mainView").style.display = "none";
-  document.getElementById("summaryView").style.display = "block";
-  const now = new Date();
-  document.getElementById("printDateLine").textContent =
-    "Printed on: " + now.toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
-  document.getElementById("summaryContent").innerHTML = buildSummarySection(cid);
+  setActiveNav(cid, true);
+  document.getElementById("page-title").innerHTML = `<i class="fas fa-chart-bar" style="color:var(--warning);margin-right:.5rem;"></i>${GRADES[cid].name} — Summary`;
+  const pc = document.getElementById("page-content");
+  pc.innerHTML = buildSummaryHTML(cid);
 }
- 
-function buildSummarySection(cid) {
+
+function buildSummaryHTML(cid) {
   const g = GRADES[cid];
   const today = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"2-digit",year:"numeric"});
- 
-  // Compute totals & rank
   const rawList = g.students.map(s => {
     const m = marksData[cid]?.[s.id] || {};
-    let total = 0, cnt = 0;
-    g.subjects.forEach(sub => { const v = parseFloat(m[sub]); if (!isNaN(v)){total+=v;cnt++;} });
-    return { ...s, total: cnt>0?total:-1, avg: cnt>0?(total/cnt).toFixed(1):"" };
+    let total=0,cnt=0;
+    g.subjects.forEach(sub => { const v=parseFloat(m[sub]); if(!isNaN(v)){total+=v;cnt++;} });
+    return { ...s, total:cnt>0?total:-1, avg:cnt>0?(total/cnt).toFixed(1):"" };
   });
   const sorted = [...rawList].filter(x=>x.total>=0).sort((a,b)=>b.total-a.total);
-  const withRank = rawList.map(s => {
-    const r = sorted.findIndex(x=>x.id===s.id);
-    return { ...s, rank: r>=0?r+1:"—" };
-  });
+  const withRank = rawList.map(s => ({ ...s, rank: sorted.findIndex(x=>x.id===s.id)>=0?sorted.findIndex(x=>x.id===s.id)+1:"—" }));
   const cnt = sorted.length;
   const passing = sorted.filter(s=>parseFloat(s.avg)>=35).length;
-  const topStudent = sorted.length>0?sorted[0]:{};
+  const topStudent = sorted[0] || {};
   const classAvg = sorted.length>0?(sorted.reduce((a,b)=>a+b.total,0)/sorted.length/g.subjects.length).toFixed(1):"—";
- 
-  // Separate boys/girls for display
+
   const boys  = withRank.filter(s=>s.gender==="Male");
   const girls = withRank.filter(s=>s.gender!=="Male");
   const groups = (boys.length&&girls.length) ? [{label:"👦 Boys",students:boys},{label:"👧 Girls",students:girls}] : [{label:"",students:withRank}];
- 
-  let html = `<div class="sum-card">
-    <div class="sum-title-bar">
-      <h3>📋 ${g.name} — Student Results Summary</h3>
-      <span>${cnt} students · ${g.subjects.length} subjects</span>
+
+  // Stats
+  let html = `
+    <div class="section-header">
+      <h2><i class="fas fa-chart-bar" style="color:var(--warning);margin-right:.5rem;"></i>${g.name} — Summary</h2>
+      <div class="flex gap-3 items-center" style="flex-wrap:wrap;">
+        <button class="btn btn-success btn-sm" onclick="doPrint('${esc(cid)}')"><i class="fas fa-print"></i> Print</button>
+        <button class="btn btn-outline btn-sm" onclick="showGrade('${esc(cid)}')"><i class="fas fa-arrow-left"></i> Back to Marks</button>
+      </div>
     </div>
-    <div class="sum-table-wrap"><table class="sum-table"><thead><tr>
-      <th>Rank</th><th>No.</th><th>Index No.</th><th>Full Name</th>`;
-  g.subjects.forEach(s => html += `<th>${s}</th>`);
+
+    <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:1.25rem;">
+      <div class="stat-card glass stat-blue"><div class="stat-icon"><i class="fas fa-user-graduate"></i></div><div class="stat-value">${cnt}</div><div class="stat-label">Total Students</div></div>
+      <div class="stat-card glass stat-green"><div class="stat-icon"><i class="fas fa-check-circle"></i></div><div class="stat-value">${passing}</div><div class="stat-label">Passed</div></div>
+      <div class="stat-card glass" style="border:1px solid rgba(239,68,68,.25);background:rgba(239,68,68,.08);"><div class="stat-icon" style="background:rgba(239,68,68,.2);color:var(--danger);"><i class="fas fa-times-circle"></i></div><div class="stat-value" style="color:var(--danger);">${cnt-passing}</div><div class="stat-label">Failed</div></div>
+      <div class="stat-card glass stat-cyan"><div class="stat-icon"><i class="fas fa-percentage"></i></div><div class="stat-value">${classAvg}%</div><div class="stat-label">Class Avg</div></div>
+      <div class="stat-card glass stat-orange"><div class="stat-icon"><i class="fas fa-trophy"></i></div><div class="stat-value" style="font-size:1rem;line-height:1.3;margin-top:.25rem;">${topStudent.name||"—"}</div><div class="stat-label">Rank 1</div></div>
+    </div>
+
+    <div class="glass card" style="padding:0;margin-bottom:1.25rem;">
+      <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--glass-border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;">
+        <h3 style="font-size:.95rem;font-weight:800;"><i class="fas fa-table" style="color:var(--blue-accent);margin-right:.5rem;"></i>Results Table</h3>
+        <span style="font-size:.78rem;color:var(--text-muted);">${cnt} students · ${g.subjects.length} subjects</span>
+      </div>
+      <div class="sum-table-wrap"><table class="sum-table"><thead><tr>
+        <th>Rank</th><th>#</th><th>Index</th><th>Name</th>`;
+  g.subjects.forEach(s => html += `<th style="font-size:.65rem;">${s}</th>`);
   html += `<th>Total</th><th>Avg</th></tr></thead><tbody>`;
- 
+
   let no = 1;
   groups.forEach(grp => {
-    if (grp.label) html += `<tr class="sep-row"><td colspan="${4+g.subjects.length+2}" style="padding:3px 8px;font-size:10px;font-weight:800;color:var(--gray);text-transform:uppercase;letter-spacing:.06em;background:#e8edf5;text-align:left;">${grp.label}</td></tr>`;
+    if (grp.label) {
+      html += `<tr class="sep-sum-row"><td colspan="${4+g.subjects.length+2}" style="padding:4px 1rem;font-size:.7rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">${grp.label}</td></tr>`;
+    }
     grp.students.forEach(s => {
       const m = marksData[cid]?.[s.id] || {};
       const rn = s.rank;
       const rcls = rn===1?"r1":rn===2?"r2":rn===3?"r3":"";
-      const medal = rn===1?"🥇 ":rn===2?"🥈 ":rn===3?"🥉 ":"";
+      const medal = rn===1?"🥇":rn===2?"🥈":rn===3?"🥉":"";
       html += `<tr>
-        <td class="srank ${rcls}">${medal}${rn}</td>
-        <td>${no++}</td><td>${s.indexNo||"—"}</td>
-        <td><strong>${s.name||"—"}</strong></td>`;
+        <td class="srank ${rcls}">${medal} ${rn}</td>
+        <td style="color:var(--text-muted);font-size:.78rem;">${no++}</td>
+        <td style="font-size:.78rem;color:var(--text-muted);">${s.indexNo||"—"}</td>
+        <td><strong style="font-size:.85rem;">${s.name||"—"}</strong></td>`;
       g.subjects.forEach(sub => {
         const v = m[sub]||""; const sc = getScoreClass(v);
-        html += `<td class="${sc}" style="font-weight:700">${v||"—"}</td>`;
+        html += `<td><span class="score-val ${sc}" style="font-size:.78rem;">${v||"—"}</span></td>`;
       });
       html += `<td class="stotal">${s.total>=0?s.total:"—"}</td>
         <td class="savg">${s.avg||"—"}</td></tr>`;
     });
   });
   html += `</tbody></table></div>`;
- 
-  // Stats
-  html += `<div class="stats-row">
-    <div class="stat-box"><div class="stat-num">${cnt}</div><div class="stat-lbl">Total Students</div></div>
-    <div class="stat-box"><div class="stat-num" style="color:var(--green)">${passing}</div><div class="stat-lbl">Passed</div></div>
-    <div class="stat-box"><div class="stat-num" style="color:var(--red)">${cnt-passing}</div><div class="stat-lbl">Failed</div></div>
-    <div class="stat-box"><div class="stat-num">${classAvg}%</div><div class="stat-lbl">Class Average</div></div>
-    <div class="stat-box"><div class="stat-num" style="font-size:13px">${topStudent.name||"—"}</div><div class="stat-lbl">Rank 1 Student</div></div>
-  </div>`;
- 
-  // Signature section
+
+  // Signatures
   html += `<div class="sig-section">
-    <div class="sig-box">
+    <div>
       <div class="sig-label">✍️ Class Teacher</div>
       <input class="sig-name-input" type="text" placeholder="Name of Class Teacher"/>
       <div class="sig-space"></div>
       <div class="sig-caption">Signature of Class Teacher</div>
       <div class="sig-date-row"><span class="sig-date-label">Date :</span><input class="sig-date-input" type="text" value="${today}"/></div>
     </div>
-    <div class="sig-box">
+    <div>
       <div class="sig-label">✍️ Sectional Head</div>
       <input class="sig-name-input" type="text" placeholder="Name of Sectional Head"/>
       <div class="sig-space"></div>
       <div class="sig-caption">Signature of Sectional Head</div>
       <div class="sig-date-row"><span class="sig-date-label">Date :</span><input class="sig-date-input" type="text" value="${today}"/></div>
     </div>
-    <div class="sig-box">
+    <div>
       <div class="sig-label">✍️ Principal</div>
       <input class="sig-name-input" type="text" placeholder="Name of Principal"/>
       <div class="sig-space"></div>
       <div class="sig-caption">Signature of Principal</div>
       <div class="sig-date-row"><span class="sig-date-label">Date :</span><input class="sig-date-input" type="text" value="${today}"/></div>
     </div>
-  </div>`;
- 
-  html += `<div style="padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;" class="no-print">
-    <button class="print-btn" onclick="window.print()"><i class="fas fa-print"></i> Print This Summary</button>
-    <button class="back-btn" onclick="backToMarks()">← Back to Marks</button>
   </div></div>`;
+
   return html;
 }
- 
-// ════════════════════════════════════════════════════════
-//  ADMIN PANEL
-// ════════════════════════════════════════════════════════
-function renderAdminPanel() {
-  const teachers = window.AUTH.getTeachers();
-  const principal = window.AUTH.getPrincipal();
-  const allUsers = [
-    { name: principal.name, username: principal.username, role: "admin", grades: "all" },
-    ...teachers.map(t => ({
-      name: t.name, username: t.username, role: "teacher",
-      grades: t.assignedClasses?.length ? t.assignedClasses.map(cid => GRADES[cid]?.name||cid).join(", ") : "All classes"
-    }))
-  ];
-  let html = `<div class="admin-section"><div class="admin-card">
-    <h3>🔑 Login Accounts</h3>
-    <p class="admin-hint">All accounts use the same login for both <strong>Marks</strong> and <strong>Attendance</strong> systems.</p>
-    <div class="user-list">`;
-  allUsers.forEach(u => {
-    html += `<div class="user-card ${u.role==="admin"?"is-admin":""}">
-      <div class="user-name">${u.role==="admin"?"👑":"👤"} ${u.name}</div>
-      <div class="user-role">${u.role==="admin"?"Administrator":"Teacher"} · ${u.grades}</div>
-      <div><span class="user-pass">@${u.username}</span></div>
-    </div>`;
-  });
-  html += `</div></div></div>`;
-  document.getElementById("adminPanel").innerHTML = html;
+
+function doPrint(cid) {
+  const g = GRADES[cid];
+  const now = new Date();
+  document.getElementById("print-date-line").textContent =
+    "Printed: " + now.toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
+  // Clone summary into print area
+  const summaryHTML = buildSummaryHTML(cid);
+  const tmp = document.createElement("div");
+  tmp.innerHTML = summaryHTML;
+  // Remove action buttons
+  tmp.querySelectorAll(".section-header").forEach(el => el.remove());
+  document.getElementById("print-content").innerHTML = tmp.innerHTML;
+  window.print();
 }
+
+// ════════════════════════════════════════════════════════════════
+//  TOAST
+// ════════════════════════════════════════════════════════════════
+function toast(msg, type="info") {
+  const icons = { success:"check-circle", error:"times-circle", warning:"exclamation-triangle", info:"info-circle" };
+  const t = document.createElement("div");
+  t.className = `toast ${type}`;
+  t.innerHTML = `<i class="fas fa-${icons[type]||"info-circle"}" style="color:var(--${type==="success"?"success":type==="error"?"danger":type==="warning"?"warning":"blue-accent"});"></i>${msg}`;
+  document.getElementById("toast-container").appendChild(t);
+  setTimeout(() => { t.style.animation="slideOut .35s ease forwards"; setTimeout(()=>t.remove(),350); }, 3000);
+}
+
+// ════════════════════════════════════════════════════════════════
+//  KEYBOARD SHORTCUTS
+// ════════════════════════════════════════════════════════════════
+document.addEventListener("keydown", e => {
+  if (e.key==="Enter" && !document.getElementById("page-login").classList.contains("hidden")) MARKS.login();
+  if ((e.ctrlKey||e.metaKey) && e.key==="s" && !document.getElementById("app-shell").classList.contains("hidden")) {
+    e.preventDefault(); if (hasUnsaved) saveData();
+  }
+});
 </script>
 </body>
 </html>
- 
