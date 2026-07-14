@@ -657,11 +657,39 @@ async function initMarks() {
   }
 }
 
+function isClassTeacherOf(cid) {
+  if (!currentUser) return false;
+  const className = GRADES[cid]?.name || CLASS_MAP[cid]?.name || cid;
+  const ac = currentUser.assignedClasses || [];
+  return ac.includes(className) || ac.includes(cid);
+}
+
 function canAccess(cid) {
   if (!currentUser) return false;
   if (currentUser.role === "principal") return true;
-  const ac = currentUser.assignedClasses || [];
-  return ac.length === 0 || ac.includes(cid);
+  if (isClassTeacherOf(cid)) return true;                 // class teacher: full access to their own class
+  if (currentUser.subject && currentUser.subject.trim()) return true; // subject teacher: can view all classes to mark their subject
+  if (!currentUser.className && !currentUser.subject) return true;    // no assignment at all (legacy/unrestricted account)
+  return false;
+}
+
+// Can this user edit the given subject's marks in this class?
+function canEditSubject(cid, subject) {
+  if (!currentUser) return false;
+  if (currentUser.role === "principal") return true;
+  if (isClassTeacherOf(cid)) return true;                                     // class teacher edits every subject in their class
+  if (currentUser.subject && currentUser.subject === subject) return true;    // subject teacher edits only their subject, in any class
+  if (!currentUser.className && !currentUser.subject) return true;           // unrestricted account
+  return false;
+}
+
+// Does this user have edit rights to at least one subject in this class? (controls class-level actions)
+function hasAnyEditRights(cid) {
+  if (!currentUser) return false;
+  if (currentUser.role === "principal") return true;
+  if (isClassTeacherOf(cid)) return true;
+  const subs = GRADES[cid]?.subjects || [];
+  return currentUser.subject && subs.includes(currentUser.subject);
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -783,7 +811,8 @@ function getScoreClass(v) {
 
 function renderTable(cid) {
   const g = GRADES[cid];
-  const editable = canAccess(cid);
+  const editable = hasAnyEditRights(cid);
+  const isManager = currentUser.role === "principal" || isClassTeacherOf(cid);
   const pc = document.getElementById("page-content");
 
   const boys  = g.students.filter(s => s.gender === "Male");
@@ -803,7 +832,7 @@ function renderTable(cid) {
             style="background:rgba(255,255,255,.06);border:1px solid var(--glass-border);color:var(--text-main);border-radius:8px;padding:.38rem .75rem .38rem 2rem;font-family:'Nunito',sans-serif;font-size:.82rem;width:160px;outline:none;"/>
         </div>
         <button class="btn btn-outline btn-sm" onclick="exportMarksCSV('${esc(cid)}')"><i class="fas fa-download"></i> CSV</button>
-        ${editable ? `<button class="btn btn-outline btn-sm" onclick="manageSubjects('${esc(cid)}')"><i class="fas fa-book"></i> Edit Subjects</button>` : ""}
+        ${isManager ? `<button class="btn btn-outline btn-sm" onclick="manageSubjects('${esc(cid)}')"><i class="fas fa-book"></i> Edit Subjects</button>` : ""}
         <button class="btn btn-warning btn-sm" onclick="showSummary('${esc(cid)}')"><i class="fas fa-chart-bar"></i> Summary & Print</button>
       </div>
     </div>
@@ -815,13 +844,14 @@ function renderTable(cid) {
       <span class="score-val score-c">≥35 C</span>
       <span class="score-val score-f">&lt;35 F</span>
       ${editable ? `<span style="font-size:.78rem;color:var(--text-muted);margin-left:auto;"><i class="fas fa-mouse-pointer"></i> Click any score to edit · <kbd style="background:rgba(255,255,255,.1);border:1px solid var(--glass-border);border-radius:4px;padding:.1rem .35rem;font-size:.72rem;">Tab</kbd> next cell</span>` : ""}
+      ${(!isManager && currentUser.role!=="principal" && currentUser.subject) ? `<span style="font-size:.78rem;color:var(--sky);margin-left:auto;"><i class="fas fa-lock"></i> You can only edit <strong>${currentUser.subject}</strong> marks here</span>` : ""}
     </div>
 
     <div class="glass card" style="padding:0;">
       <div class="table-wrapper"><table>
         <thead><tr>
           <th>#</th><th>Index</th><th>Name</th>`;
-  g.subjects.forEach(s => html += `<th style="font-size:.7rem;">${s}</th>`);
+  g.subjects.forEach(s => html += `<th style="font-size:.7rem;${currentUser.role!=="principal" && !isClassTeacherOf(cid) && currentUser.subject===s ? 'color:var(--sky);' : ''}">${s}</th>`);
   html += `<th>Total</th><th>Avg</th><th>Rank</th></tr></thead><tbody>`;
 
   let rowNo = 1;
@@ -830,7 +860,7 @@ function renderTable(cid) {
       html += `<tr class="sep-label-row"><td colspan="${3+g.subjects.length+3}">${grp.label}</td></tr>`;
     }
     grp.students.forEach(s => {
-      html += renderStudentRow(s, cid, rowNo++, g.subjects, editable);
+      html += renderStudentRow(s, cid, rowNo++, g.subjects);
     });
   });
 
@@ -839,7 +869,7 @@ function renderTable(cid) {
   computeRanks(cid);
 }
 
-function renderStudentRow(s, cid, rowNo, subjects, editable) {
+function renderStudentRow(s, cid, rowNo, subjects) {
   const marks = marksData[cid]?.[s.id] || {};
   let total = 0, cnt = 0;
   subjects.forEach(sub => { const v = parseFloat(marks[sub]); if (!isNaN(v)){ total+=v; cnt++; } });
@@ -859,7 +889,7 @@ function renderStudentRow(s, cid, rowNo, subjects, editable) {
     </td>`;
   subjects.forEach(sub => {
     const v = marks[sub]||""; const sc = getScoreClass(v);
-    if (editable) {
+    if (canEditSubject(cid, sub)) {
       html += `<td class="editable" onclick="editCell(this,'${esc(cid)}','${esc(s.id)}','${esc(sub)}')">
         <span class="score-val ${sc}">${v||"—"}</span></td>`;
     } else {
