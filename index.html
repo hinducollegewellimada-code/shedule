@@ -7,7 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
- 
+
 <script type="module">
   const firebaseConfig = {
     apiKey:            "AIzaSyBh5PYhost31YBNWmr4G3sVCPxcaD2yNEY",
@@ -27,27 +27,50 @@
   const db  = getFirestore(app);
   window.FB = { db, collection, getDocs, doc, getDoc,
     setDoc, updateDoc, deleteDoc, query, where, orderBy, serverTimestamp };
+
+  // ── STAFF LOGIN (Firestore-only, created via Admin Teacher Management panel) ──
+  const STAFF_COL = "whc_staff";
+  window.AUTH = {
+    getSession(){ const s=sessionStorage.getItem("whc_session"); return s?JSON.parse(s):null; },
+    setSession(u){ sessionStorage.setItem("whc_session",JSON.stringify(u)); },
+    clearSession(){ sessionStorage.removeItem("whc_session"); },
+    async login(username, password){
+      username = (username||"").trim();
+      password = (password||"").trim();
+      if(!username || !password) return null;
+      try{
+        const q = query(
+          collection(db, STAFF_COL),
+          where("username","==", username),
+          where("password","==", password)
+        );
+        const snap = await getDocs(q);
+        if(snap.empty) return null;
+        const docSnap = snap.docs[0];
+        const d = docSnap.data();
+        const isAdminRole = ["principal","deputy_principal","vice_principal"].includes(d.role);
+        const u = {
+          id: docSnap.id,
+          role: isAdminRole ? "principal" : (d.role || "teacher"),
+          rawRole: d.role || "teacher",
+          name: d.name || username,
+          email: d.username || username,
+          className: d.className || "",
+          subject: d.subject || "",
+          assignedClasses: d.className ? [d.className] : []
+        };
+        this.setSession(u);
+        return u;
+      } catch(e){
+        console.error("Login error:", e);
+        return null;
+      }
+    }
+  };
+
   window.dispatchEvent(new Event("firebaseReady"));
 </script>
- 
-<script>
-const DEFAULT_PRINCIPAL = { username:"principal@whc.lk", password:"principal@1221", name:"Principal", role:"principal" };
-window.AUTH = {
-  getPrincipal(){ const s=localStorage.getItem("whc_principal"); return s?JSON.parse(s):{...DEFAULT_PRINCIPAL}; },
-  getTeachers(){ const s=localStorage.getItem("whc_teachers"); return s?JSON.parse(s):[]; },
-  getSession(){ const s=sessionStorage.getItem("whc_session"); return s?JSON.parse(s):null; },
-  setSession(u){ sessionStorage.setItem("whc_session",JSON.stringify(u)); },
-  clearSession(){ sessionStorage.removeItem("whc_session"); },
-  login(username,password){
-    const p=this.getPrincipal();
-    if(username===p.username&&password===p.password){ const u={id:"principal",role:"principal",name:p.name,email:username}; this.setSession(u); return u; }
-    const t=this.getTeachers().find(t=>t.username===username&&t.password===password);
-    if(t){ const u={id:t.id,role:"teacher",name:t.name,email:t.username,permissions:t.permissions||{},assignedClasses:t.assignedClasses||[]}; this.setSession(u); return u; }
-    return null;
-  }
-};
-</script>
- 
+
 <style>
 /* ================================================================
    RESET & ROOT VARIABLES  (identical to index.html)
@@ -75,20 +98,21 @@ window.AUTH = {
   --sidebar-w:   260px;
   --transition:  all .3s cubic-bezier(.4,0,.2,1);
 }
-body{ font-family:'Nunito',sans-serif; background:var(--blue-dark); color:var(--text-main); min-height:100vh; overflow-x:hidden; }
+html{ overflow-x:hidden; width:100%; }
+body{ font-family:'Nunito',sans-serif; background:var(--blue-dark); color:var(--text-main); min-height:100vh; overflow-x:hidden; width:100%; }
 body::before{ content:''; position:fixed; inset:0; z-index:-1; background: radial-gradient(ellipse 80% 60% at 20% 10%,rgba(37,99,235,.35) 0%,transparent 60%), radial-gradient(ellipse 60% 50% at 80% 80%,rgba(6,182,212,.25) 0%,transparent 60%), linear-gradient(160deg,#0a1628 0%,#0d2147 50%,#0f172a 100%); }
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--blue-accent);border-radius:3px}
- 
+
 /* UTILITY */
 .hidden{display:none!important} .flex{display:flex} .items-center{align-items:center}
 .gap-2{gap:.5rem} .gap-3{gap:.75rem} .gap-4{gap:1rem}
 .mt-2{margin-top:.5rem} .mt-4{margin-top:1rem} .mb-4{margin-bottom:1rem}
 .w-full{width:100%} .text-sm{font-size:.85rem} .text-xs{font-size:.75rem}
 .font-bold{font-weight:700} .text-center{text-align:center}
- 
+
 /* GLASS */
 .glass{ background:var(--glass-bg); border:1px solid var(--glass-border); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border-radius:var(--card-radius); }
- 
+
 /* BUTTONS */
 .btn{ display:inline-flex; align-items:center; gap:.45rem; padding:.6rem 1.3rem; border:none; cursor:pointer; border-radius:10px; font-family:'Nunito',sans-serif; font-size:.9rem; font-weight:700; transition:var(--transition); white-space:nowrap; }
 .btn-primary{ background:linear-gradient(135deg,var(--blue-light),var(--blue-accent)); color:#fff; box-shadow:0 4px 20px rgba(37,99,235,.45); }
@@ -101,21 +125,21 @@ body::before{ content:''; position:fixed; inset:0; z-index:-1; background: radia
 .btn-outline:hover{ background:var(--glass-bg); }
 .btn-sm{ padding:.4rem .9rem; font-size:.8rem; border-radius:8px; }
 .btn-icon{ padding:.5rem; border-radius:8px; aspect-ratio:1; justify-content:center; }
- 
+
 /* INPUTS */
 .input-group{ display:flex; flex-direction:column; gap:.35rem; margin-bottom:1rem; }
 .input-group label{ font-size:.82rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; }
 .form-control{ background:rgba(255,255,255,0.06); border:1px solid var(--glass-border); color:var(--text-main); border-radius:10px; padding:.65rem 1rem; font-family:'Nunito',sans-serif; font-size:.9rem; transition:var(--transition); width:100%; }
 .form-control:focus{ outline:none; border-color:var(--blue-accent); background:rgba(255,255,255,0.1); box-shadow:0 0 0 3px rgba(59,130,246,.25); }
 .form-control option{ background:var(--blue-mid); }
- 
+
 /* BADGES */
 .badge{ display:inline-flex; align-items:center; gap:.3rem; padding:.2rem .65rem; border-radius:999px; font-size:.72rem; font-weight:700; }
 .badge-present{ background:rgba(16,185,129,.2); color:var(--success); border:1px solid rgba(16,185,129,.3); }
 .badge-absent{ background:rgba(239,68,68,.2); color:var(--danger); border:1px solid rgba(239,68,68,.3); }
 .badge-admin{ background:rgba(139,92,246,.2); color:#a78bfa; border:1px solid rgba(139,92,246,.3); }
 .badge-teacher{ background:rgba(37,99,235,.2); color:var(--sky); border:1px solid rgba(37,99,235,.3); }
- 
+
 /* TOAST */
 #toast-container{ position:fixed; top:1.2rem; right:1.2rem; z-index:9999; display:flex; flex-direction:column; gap:.6rem; pointer-events:none; }
 .toast{ background:var(--blue-mid); border:1px solid var(--glass-border); color:var(--text-main); padding:.85rem 1.2rem; border-radius:12px; display:flex; align-items:center; gap:.7rem; font-size:.88rem; font-weight:600; backdrop-filter:blur(16px); box-shadow:0 8px 32px rgba(0,0,0,.4); animation:slideIn .35s ease; pointer-events:auto; min-width:260px; }
@@ -123,13 +147,13 @@ body::before{ content:''; position:fixed; inset:0; z-index:-1; background: radia
 .toast.info{border-left:4px solid var(--blue-accent)} .toast.warning{border-left:4px solid var(--warning)}
 @keyframes slideIn{from{opacity:0;transform:translateX(60px)}to{opacity:1;transform:translateX(0)}}
 @keyframes slideOut{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(60px)}}
- 
+
 /* LOADER */
 #loader{ position:fixed; inset:0; z-index:9998; background:var(--blue-dark); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1.5rem; }
 .loader-ring{ width:64px; height:64px; border:5px solid rgba(255,255,255,.1); border-top-color:var(--blue-accent); border-radius:50%; animation:spin .8s linear infinite; }
 @keyframes spin{to{transform:rotate(360deg)}}
 #loader p{color:var(--text-muted);font-size:.95rem}
- 
+
 /* LOGIN */
 #page-login{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:1.5rem; }
 .login-card{ width:100%; max-width:420px; padding:2.5rem 2rem; animation:fadeUp .6s ease; }
@@ -140,12 +164,12 @@ body::before{ content:''; position:fixed; inset:0; z-index:-1; background: radia
 .login-logo h1{ font-family:'Poppins',sans-serif; font-size:1.15rem; font-weight:800; background:linear-gradient(135deg,#fff,var(--sky)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; margin-top:.75rem; line-height:1.3; }
 .login-logo p{color:var(--text-muted);font-size:.8rem;margin-top:.25rem}
 .login-btn{width:100%;padding:.8rem;font-size:1rem;margin-top:.5rem;border-radius:12px}
- 
+
 /* APP SHELL */
-#app-shell{display:flex;min-height:100vh}
- 
+#app-shell{display:flex;min-height:100vh;width:100%;max-width:100vw;overflow-x:hidden;}
+
 /* SIDEBAR */
-#sidebar{ width:var(--sidebar-w); min-height:100vh; background:rgba(10,22,40,.85); border-right:1px solid var(--glass-border); backdrop-filter:blur(20px); display:flex; flex-direction:column; position:fixed; left:0; top:0; z-index:100; transition:var(--transition); }
+#sidebar{ width:var(--sidebar-w); height:100vh; background:rgba(10,22,40,.85); border-right:1px solid var(--glass-border); backdrop-filter:blur(20px); display:flex; flex-direction:column; position:fixed; left:0; top:0; z-index:100; transition:var(--transition); overflow-x:hidden; }
 #sidebar.collapsed{width:70px}
 .sidebar-header{ padding:1.25rem 1rem; display:flex; align-items:center; gap:.75rem; border-bottom:1px solid var(--glass-border); }
 .sidebar-logo{ width:40px; height:40px; object-fit:contain; border-radius:10px; background:rgba(255,255,255,.05); flex-shrink:0; }
@@ -171,26 +195,26 @@ body::before{ content:''; position:fixed; inset:0; z-index:-1; background: radia
 #sidebar.collapsed .user-info,
 #sidebar.collapsed .sidebar-title{opacity:0;width:0;overflow:hidden}
 .sidebar-footer{padding:.75rem .6rem;border-top:1px solid var(--glass-border)}
- 
+
 /* MAIN */
-#main-content{ flex:1; margin-left:var(--sidebar-w); transition:var(--transition); min-height:100vh; display:flex; flex-direction:column; }
-#sidebar.collapsed ~ #main-content{margin-left:70px}
- 
+#main-content{ flex:1; margin-left:var(--sidebar-w); width:calc(100% - var(--sidebar-w)); max-width:calc(100% - var(--sidebar-w)); min-width:0; transition:var(--transition); min-height:100vh; display:flex; flex-direction:column; overflow-x:hidden; }
+#sidebar.collapsed ~ #main-content{margin-left:70px; width:calc(100% - 70px); max-width:calc(100% - 70px);}
+
 /* TOPBAR */
-#topbar{ position:sticky; top:0; z-index:90; background:rgba(10,22,40,.8); border-bottom:1px solid var(--glass-border); backdrop-filter:blur(16px); padding:.9rem 1.5rem; display:flex; align-items:center; gap:1rem; }
+#topbar{ position:sticky; top:0; z-index:90; background:rgba(10,22,40,.8); border-bottom:1px solid var(--glass-border); backdrop-filter:blur(16px); padding:.9rem 1.5rem; display:flex; align-items:center; gap:1rem; flex-wrap:wrap; }
 #page-title{font-size:1.1rem;font-weight:800;flex:1}
 .topbar-actions{display:flex;align-items:center;gap:.75rem}
 .topbar-date{font-size:.78rem;color:var(--text-muted);white-space:nowrap}
- 
+
 /* PAGE CONTENT */
-.page-content{flex:1;padding:1.5rem;animation:fadeIn .4s ease}
+.page-content{flex:1;padding:1.5rem;animation:fadeIn .4s ease;min-width:0;max-width:100%;overflow-x:hidden;box-sizing:border-box;}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .section-header{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem; margin-bottom:1.25rem; }
 .section-header h2{font-size:1.25rem;font-weight:800}
- 
+
 /* CARDS */
 .card{padding:1.25rem;border-radius:var(--card-radius)}
- 
+
 /* STATS */
 .stats-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:1rem; margin-bottom:1.5rem; }
 .stat-card{ padding:1.25rem 1rem; border-radius:var(--card-radius); display:flex; flex-direction:column; gap:.5rem; position:relative; overflow:hidden; animation:statIn .5s ease both; }
@@ -202,7 +226,7 @@ body::before{ content:''; position:fixed; inset:0; z-index:-1; background: radia
 .stat-green .stat-icon{background:rgba(16,185,129,.2);color:var(--success)}
 .stat-orange .stat-icon{background:rgba(249,115,22,.2);color:var(--late)}
 .stat-cyan .stat-icon{background:rgba(6,182,212,.2);color:var(--cyan)}
- 
+
 /* TABLE */
 .table-wrapper{overflow-x:auto;border-radius:var(--card-radius)}
 table{width:100%;border-collapse:collapse;font-size:.87rem}
@@ -212,7 +236,7 @@ tbody td:nth-child(1),tbody td:nth-child(2),tbody td:nth-child(3){text-align:lef
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover{background:rgba(255,255,255,.03)}
 .td-actions{display:flex;gap:.4rem}
- 
+
 /* MODAL */
 .modal-overlay{ position:fixed; inset:0; z-index:200; background:rgba(5,12,26,.75); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; padding:1rem; animation:fadeIn .25s ease; }
 .modal{ width:100%; max-width:540px; max-height:90vh; overflow-y:auto; padding:2rem; animation:scaleIn .3s cubic-bezier(.34,1.56,.64,1); }
@@ -222,19 +246,19 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 .modal-close{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem;padding:.25rem}
 .modal-close:hover{color:var(--danger)}
 .modal-footer{display:flex;gap:.5rem;justify-content:flex-end;margin-top:1.25rem}
- 
+
 /* EMPTY STATE */
 .empty-state{text-align:center;padding:3rem 1rem;color:var(--text-muted)}
 .empty-state i{font-size:3rem;opacity:.3;margin-bottom:1rem;display:block}
 .empty-state p{font-size:.9rem}
- 
+
 /* TABS (class selector) */
 .tabs{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1.25rem}
 .tab-btn{ padding:.5rem 1.1rem; border-radius:10px; border:1px solid var(--glass-border); background:transparent; color:var(--text-muted); cursor:pointer; font-size:.85rem; font-weight:700; transition:var(--transition); font-family:'Nunito',sans-serif; }
 .tab-btn.active,.tab-btn:hover{background:var(--glass-bg);color:var(--white);border-color:var(--blue-accent)}
 .tab-btn.sum-tab{border-color:rgba(245,158,11,.3);color:var(--warning)}
 .tab-btn.sum-tab.active,.tab-btn.sum-tab:hover{background:rgba(245,158,11,.15);color:var(--warning);border-color:var(--warning)}
- 
+
 /* MARKS-SPECIFIC STYLES */
 .score-val{ display:inline-block; min-width:36px; padding:2px 8px; border-radius:8px; font-weight:700; cursor:pointer; transition:.15s; font-size:.82rem; }
 .score-val.empty{color:var(--text-muted);font-weight:500}
@@ -243,23 +267,23 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 .score-c{color:var(--warning);background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25)}
 .score-f{color:var(--danger);background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.25)}
 .score-val.score-a:hover,.score-val.score-b:hover,.score-val.score-c:hover,.score-val.score-f:hover,.score-val.empty:hover{filter:brightness(1.3)}
- 
+
 td.editable input{ width:58px; padding:4px 6px; border:2px solid var(--blue-accent); border-radius:8px; text-align:center; font-size:.85rem; font-family:'Nunito',sans-serif; font-weight:700; color:var(--text-main); outline:none; background:rgba(37,99,235,.2); }
- 
+
 .sep-label-row td{ background:rgba(37,99,235,.08); padding:5px 1rem; text-align:left; font-size:.72rem; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--text-muted); border-bottom:1px solid var(--glass-border); }
- 
+
 .rank-num{ font-size:.85rem; font-weight:800; }
 .rank-1{color:#f59e0b} .rank-2{color:var(--text-muted)} .rank-3{color:#c2783b}
 .total-cell{font-weight:800;color:var(--text-main)}
 .avg-cell{font-weight:700;color:var(--sky)}
- 
+
 /* SAVE BAR */
 .save-bar{ position:fixed; bottom:1.5rem; right:1.5rem; z-index:200; display:flex; gap:.75rem; align-items:center; }
 .save-status{ background:var(--blue-mid); border:1px solid var(--glass-border); padding:.7rem 1.1rem; border-radius:12px; font-size:.85rem; font-weight:700; box-shadow:0 4px 20px rgba(0,0,0,.3); display:none; backdrop-filter:blur(12px); }
 .save-status.show{display:block}
 .save-status.ok{color:var(--success);border-color:rgba(16,185,129,.4)}
 .save-status.err{color:var(--danger);border-color:rgba(239,68,68,.4)}
- 
+
 /* SUMMARY/PRINT */
 .sum-table-wrap{overflow-x:auto}
 .sum-table{width:100%;border-collapse:collapse;font-size:.8rem}
@@ -273,7 +297,7 @@ td.editable input{ width:58px; padding:4px 6px; border:2px solid var(--blue-acce
 .sum-table .savg{font-weight:700;color:var(--sky)}
 .sum-table .srank{font-weight:900}
 .srank.r1{color:#f59e0b} .srank.r2{color:var(--text-muted)} .srank.r3{color:#c2783b}
- 
+
 /* Signature */
 .sig-section{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:2rem; padding:1.75rem 1.5rem 1.5rem; border-top:1px solid var(--glass-border); }
 .sig-label{font-size:.72rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.5rem}
@@ -285,7 +309,7 @@ td.editable input{ width:58px; padding:4px 6px; border:2px solid var(--blue-acce
 .sig-name-input{width:100%}
 .sig-name-input::placeholder,.sig-date-input::placeholder{color:var(--text-muted);font-weight:400}
 .sig-date-input{flex:1;text-align:center}
- 
+
 /* PRINT */
 @media print {
   body{background:white!important;color:#1e293b!important}
@@ -302,7 +326,7 @@ td.editable input{ width:58px; padding:4px 6px; border:2px solid var(--blue-acce
   .sep-sum-row td{background:#dde3ef!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 #print-area{display:none}
- 
+
 /* LIGHT MODE */
 body.light{--glass-bg:rgba(255,255,255,0.65);--glass-border:rgba(0,0,0,.1);--text-main:#1e293b;--text-muted:#64748b;color:var(--text-main)}
 body.light::before{background:linear-gradient(160deg,#dbeafe 0%,#eff6ff 50%,#f0f9ff 100%)}
@@ -312,16 +336,24 @@ body.light .form-control{background:rgba(0,0,0,.04);color:var(--text-dark);borde
 body.light td.editable input{background:#dbeafe;color:#1e293b}
 body.light .sig-space{border-color:#666}
 body.light .sig-name-input,body.light .sig-date-input{color:#1e293b;border-color:#999}
- 
+
 /* RESPONSIVE */
 @media(max-width:768px){
   :root{--sidebar-w:0px}
   #sidebar{transform:translateX(-260px);width:260px}
   #sidebar.mobile-open{transform:translateX(0)}
-  #main-content{margin-left:0}
+  #main-content{margin-left:0;width:100%;max-width:100%;}
   #mobile-menu-btn{display:flex!important}
   .stats-grid{grid-template-columns:repeat(2,1fr)}
   .sig-section{grid-template-columns:1fr}
+  #topbar{padding:.75rem 1rem;gap:.5rem}
+  #page-title{font-size:.95rem}
+  .page-content{padding:1rem}
+  .login-card{padding:1.75rem 1.25rem}
+}
+@media(max-width:480px){
+  .topbar-date{display:none}
+  .page-content{padding:.75rem}
 }
 #mobile-menu-btn{display:none;background:none;border:none;color:var(--text-main);font-size:1.2rem;cursor:pointer}
 #mobile-overlay{display:none;position:fixed;inset:0;z-index:99;background:rgba(0,0,0,.5)}
@@ -329,15 +361,15 @@ body.light .sig-name-input,body.light .sig-date-input{color:#1e293b;border-color
 </style>
 </head>
 <body>
- 
+
 <div id="toast-container"></div>
- 
+
 <!-- LOADER -->
 <div id="loader">
   <div class="loader-ring"></div>
   <p>Loading BD/Hindu College Welimada — Marks...</p>
 </div>
- 
+
 <!-- LOGIN -->
 <div id="page-login" class="hidden">
   <div class="login-card glass">
@@ -370,11 +402,11 @@ body.light .sig-name-input,body.light .sig-date-input{color:#1e293b;border-color
     </p>
   </div>
 </div>
- 
+
 <!-- APP SHELL -->
 <div id="app-shell" class="hidden">
   <div id="mobile-overlay" onclick="MARKS.closeMobile()"></div>
- 
+
   <!-- SIDEBAR -->
   <nav id="sidebar">
     <div class="sidebar-header">
@@ -397,6 +429,13 @@ body.light .sig-name-input,body.light .sig-date-input{color:#1e293b;border-color
       <div id="class-nav-items"></div>
       <div class="nav-section-title" style="margin-top:.5rem;">Summary & Print</div>
       <div id="summary-nav-items"></div>
+      <div class="nav-section-title" id="manage-nav-title" style="margin-top:.5rem;display:none;">Principal Tools</div>
+      <div class="nav-item" id="manage-classes-btn" style="display:none;" onclick="openManageClasses()">
+        <i class="fas fa-school" style="color:var(--sky);"></i><span>Manage Classes</span>
+      </div>
+      <div class="nav-item" id="manage-order-btn" style="display:none;" onclick="openReorderStudents()">
+        <i class="fas fa-arrows-alt-v" style="color:var(--sky);"></i><span>Student Order</span>
+      </div>
     </div>
     <div class="sidebar-footer">
       <a href="attandance.html" class="nav-item" style="text-decoration:none;color:inherit;border:1px solid rgba(6,182,212,.3);background:rgba(6,182,212,.08);margin-bottom:4px;">
@@ -408,7 +447,7 @@ body.light .sig-name-input,body.light .sig-date-input{color:#1e293b;border-color
       </div>
     </div>
   </nav>
- 
+
   <!-- MAIN CONTENT -->
   <div id="main-content">
     <div id="topbar">
@@ -428,7 +467,7 @@ body.light .sig-name-input,body.light .sig-date-input{color:#1e293b;border-color
     </div>
   </div>
 </div>
- 
+
 <!-- PRINT AREA (hidden, shown only during print) -->
 <div id="print-area">
   <div style="text-align:center;padding:1rem 0 .75rem;border-bottom:3px double #1a3a8f;margin-bottom:1rem;">
@@ -437,15 +476,15 @@ body.light .sig-name-input,body.light .sig-date-input{color:#1e293b;border-color
   </div>
   <div id="print-content"></div>
 </div>
- 
+
 <!-- Save status -->
 <div class="save-bar">
   <div class="save-status" id="saveStatus"></div>
 </div>
- 
+
 <!-- Modal -->
 <div id="modal-container"></div>
- 
+
 <script>
 // ════════════════════════════════════════════════════════════════
 //  STATE
@@ -455,7 +494,7 @@ let currentGrade = null;
 let marksData = {};
 let hasUnsaved = false;
 let GRADES = {};
- 
+
 // ════════════════════════════════════════════════════════════════
 //  FIREBASE INIT
 // ════════════════════════════════════════════════════════════════
@@ -476,34 +515,43 @@ setTimeout(() => {
     document.getElementById("page-login").classList.remove("hidden");
   }
 }, 3000);
- 
+
 // ════════════════════════════════════════════════════════════════
 //  APP CONTROLLER
 // ════════════════════════════════════════════════════════════════
 const MARKS = {
   sidebarCollapsed: false,
   darkMode: localStorage.getItem("whc_theme") !== "light",
- 
-  login() {
+
+  async login() {
     const u = document.getElementById("login-user").value.trim();
     const p = document.getElementById("login-pass").value;
-    document.getElementById("login-error").style.display = "none";
-    if (!u || !p) { document.getElementById("login-error").style.display = "block"; return; }
-    const user = window.AUTH.login(u, p);
-    if (!user) { document.getElementById("login-error").style.display = "block"; return; }
+    const errEl = document.getElementById("login-error");
+    const btn = document.querySelector(".login-btn");
+    errEl.style.display = "none";
+    if (!u || !p) { errEl.style.display = "block"; return; }
+
+    const originalBtnHTML = btn ? btn.innerHTML : "";
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...'; }
+
+    const user = await window.AUTH.login(u, p);
+
+    if (btn) { btn.disabled = false; btn.innerHTML = originalBtnHTML; }
+
+    if (!user) { errEl.style.display = "block"; return; }
     currentUser = user;
     showApp();
     initMarks();
     toast("Welcome back, " + user.name + "!", "success");
   },
- 
+
   togglePwd() {
     const i = document.getElementById("login-pass");
     const e = document.getElementById("pwd-eye");
     i.type = i.type === "password" ? "text" : "password";
     e.innerHTML = i.type === "password" ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
   },
- 
+
   logout() {
     if (hasUnsaved && !confirm("You have unsaved marks. Logout?")) return;
     window.AUTH.clearSession();
@@ -513,7 +561,7 @@ const MARKS = {
     document.getElementById("login-pass").value = "";
     toast("Signed out", "info");
   },
- 
+
   toggleSidebar() {
     this.sidebarCollapsed = !this.sidebarCollapsed;
     document.getElementById("sidebar").classList.toggle("collapsed", this.sidebarCollapsed);
@@ -526,21 +574,21 @@ const MARKS = {
     document.getElementById("sidebar").classList.remove("mobile-open");
     document.getElementById("mobile-overlay").classList.remove("show");
   },
- 
+
   toggleTheme() {
     this.darkMode = !this.darkMode;
     document.body.classList.toggle("light", !this.darkMode);
     localStorage.setItem("whc_theme", this.darkMode ? "dark" : "light");
     document.getElementById("theme-btn").innerHTML = this.darkMode ? '<i class="fas fa-moon"></i>' : '<i class="fas fa-sun"></i>';
   },
- 
+
   updateClock() {
     const now = new Date();
     const el = document.getElementById("topbar-date");
     if (el) el.textContent = now.toLocaleDateString("en-GB", { weekday:"short", day:"2-digit", month:"short", year:"numeric" });
   }
 };
- 
+
 function showApp() {
   document.getElementById("page-login").classList.add("hidden");
   document.getElementById("app-shell").classList.remove("hidden");
@@ -552,10 +600,12 @@ function showApp() {
   MARKS.updateClock();
   setInterval(() => MARKS.updateClock(), 60000);
 }
- 
+
 // ════════════════════════════════════════════════════════════════
 //  INIT — load from Firestore
 // ════════════════════════════════════════════════════════════════
+let CLASS_MAP = {}; // raw Firestore "classes" docs, cid -> {name, subjects, ...}
+
 async function initMarks() {
   document.getElementById("page-content").innerHTML = `
     <div style="display:flex;align-items:center;justify-content:center;padding:4rem;gap:1rem;color:var(--text-muted);">
@@ -570,6 +620,7 @@ async function initMarks() {
     ]);
     const classMap = {};
     classSnap.forEach(d => { classMap[d.id] = { ...d.data(), id: d.id }; });
+    CLASS_MAP = classMap;
     const studentsByClass = {};
     studentSnap.forEach(d => {
       const s = { id: d.id, ...d.data() };
@@ -583,7 +634,7 @@ async function initMarks() {
       if (b.registerOrder != null) return 1;
       return (a.name||"").localeCompare(b.name||"");
     }));
- 
+
     GRADES = {};
     Object.keys(classMap).sort().forEach(cid => {
       if (!canAccess(cid) && !(studentsByClass[cid]?.length)) return;
@@ -605,14 +656,14 @@ async function initMarks() {
       </div>`;
   }
 }
- 
+
 function canAccess(cid) {
   if (!currentUser) return false;
   if (currentUser.role === "principal") return true;
   const ac = currentUser.assignedClasses || [];
   return ac.length === 0 || ac.includes(cid);
 }
- 
+
 // ════════════════════════════════════════════════════════════════
 //  SIDEBAR NAV
 // ════════════════════════════════════════════════════════════════
@@ -621,7 +672,7 @@ function buildSidebarNav() {
   const classNav   = document.getElementById("class-nav-items");
   const sumNav     = document.getElementById("summary-nav-items");
   classNav.innerHTML = ""; sumNav.innerHTML = "";
- 
+
   accessible.forEach(cid => {
     const g = GRADES[cid];
     const el = document.createElement("div");
@@ -638,39 +689,47 @@ function buildSidebarNav() {
     el.onclick = () => showSummary(cid);
     sumNav.appendChild(el);
   });
+
+  const isPrincipal = currentUser && currentUser.role === "principal";
+  document.getElementById("manage-nav-title").style.display = isPrincipal ? "" : "none";
+  document.getElementById("manage-classes-btn").style.display = isPrincipal ? "" : "none";
+  document.getElementById("manage-order-btn").style.display = isPrincipal ? "" : "none";
 }
- 
+
 function setActiveNav(cid, isSummary) {
   document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
   const el = document.getElementById(isSummary ? "snav-"+cid : "nav-"+cid);
   if (el) el.classList.add("active");
 }
- 
+
 // ════════════════════════════════════════════════════════════════
 //  SUBJECTS
 // ════════════════════════════════════════════════════════════════
 const DEFAULT_SUBJECTS_9_11 = ["Religion","Tamil","English","Maths","Science","History","B1","B2","B3"];
 const DEFAULT_SUBJECTS_6_8  = ["Religion","Tamil","Maths","Science","English","History","Civics","Art/Dance","PTS","Sinhala","ICT","Health","Geography"];
- 
+
 function defaultSubjects(cid) {
   const name = (GRADES[cid]?.name || cid).toLowerCase();
   if (name.includes("11")||name.includes("10")||name.includes("9")||name.includes("09")) return DEFAULT_SUBJECTS_9_11;
   return DEFAULT_SUBJECTS_6_8;
 }
 function loadSubjectsForClass(cid) {
-  const s = localStorage.getItem("whc_subjects_" + cid);
-  return s ? JSON.parse(s) : defaultSubjects(cid);
+  const stored = CLASS_MAP[cid]?.subjects;
+  if (Array.isArray(stored) && stored.length) return stored;
+  return defaultSubjects(cid);
 }
-function saveSubjectsForClass(cid, subs) {
-  localStorage.setItem("whc_subjects_" + cid, JSON.stringify(subs));
+async function saveSubjectsForClass(cid, subs) {
+  const { db, doc, updateDoc } = window.FB;
+  await updateDoc(doc(db, "classes", cid), { subjects: subs });
+  if (CLASS_MAP[cid]) CLASS_MAP[cid].subjects = subs;
   GRADES[cid].subjects = subs;
 }
- 
+
 // ════════════════════════════════════════════════════════════════
 //  MARKS PERSISTENCE
 // ════════════════════════════════════════════════════════════════
 function mkey(cid, sid, sub) { return `marks_${cid}_${sid}_${sub}`; }
- 
+
 function loadMarks(cid) {
   const g = GRADES[cid];
   if (!marksData[cid]) marksData[cid] = {};
@@ -682,7 +741,7 @@ function loadMarks(cid) {
     });
   });
 }
- 
+
 function saveData() {
   Object.keys(marksData).forEach(cid =>
     Object.keys(marksData[cid]).forEach(sid =>
@@ -695,13 +754,13 @@ function saveData() {
   document.getElementById("saveBtn").style.display = "none";
   showStatus("✅ Saved!", "ok");
 }
- 
+
 function showStatus(msg, type) {
   const el = document.getElementById("saveStatus");
   el.textContent = msg; el.className = "save-status show " + type;
   setTimeout(() => el.className = "save-status", 2800);
 }
- 
+
 // ════════════════════════════════════════════════════════════════
 //  MARKS TABLE
 // ════════════════════════════════════════════════════════════════
@@ -711,7 +770,7 @@ function showGrade(cid) {
   document.getElementById("page-title").innerHTML = `<i class="fas fa-table" style="color:var(--blue-accent);margin-right:.5rem;"></i>${GRADES[cid].name} — Marks Entry`;
   renderTable(cid);
 }
- 
+
 function esc(s) { return String(s).replace(/'/g, "\\'"); }
 function getScoreClass(v) {
   const n = parseFloat(v);
@@ -721,19 +780,19 @@ function getScoreClass(v) {
   if (n>=35) return "score-c";
   return "score-f";
 }
- 
+
 function renderTable(cid) {
   const g = GRADES[cid];
   const editable = canAccess(cid);
   const pc = document.getElementById("page-content");
- 
+
   const boys  = g.students.filter(s => s.gender === "Male");
   const girls = g.students.filter(s => s.gender !== "Male");
   const showGroups = boys.length > 0 && girls.length > 0;
   const groups = showGroups
     ? [{ label:"👦 Boys", students:boys }, { label:"👧 Girls", students:girls }]
     : [{ label:"", students:g.students }];
- 
+
   let html = `
     <div class="section-header">
       <h2><i class="fas fa-table" style="color:var(--blue-accent);margin-right:.5rem;"></i>${g.name} <span style="color:var(--text-muted);font-weight:600;font-size:1rem;">(${g.students.length} students)</span></h2>
@@ -748,7 +807,7 @@ function renderTable(cid) {
         <button class="btn btn-warning btn-sm" onclick="showSummary('${esc(cid)}')"><i class="fas fa-chart-bar"></i> Summary & Print</button>
       </div>
     </div>
- 
+
     <div class="glass card" style="margin-bottom:1rem;padding:.7rem 1rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;">
       <span style="font-size:.78rem;color:var(--text-muted);">Score colours:</span>
       <span class="score-val score-a">≥75 A</span>
@@ -757,14 +816,14 @@ function renderTable(cid) {
       <span class="score-val score-f">&lt;35 F</span>
       ${editable ? `<span style="font-size:.78rem;color:var(--text-muted);margin-left:auto;"><i class="fas fa-mouse-pointer"></i> Click any score to edit · <kbd style="background:rgba(255,255,255,.1);border:1px solid var(--glass-border);border-radius:4px;padding:.1rem .35rem;font-size:.72rem;">Tab</kbd> next cell</span>` : ""}
     </div>
- 
+
     <div class="glass card" style="padding:0;">
       <div class="table-wrapper"><table>
         <thead><tr>
           <th>#</th><th>Index</th><th>Name</th>`;
   g.subjects.forEach(s => html += `<th style="font-size:.7rem;">${s}</th>`);
   html += `<th>Total</th><th>Avg</th><th>Rank</th></tr></thead><tbody>`;
- 
+
   let rowNo = 1;
   groups.forEach(grp => {
     if (grp.label) {
@@ -774,12 +833,12 @@ function renderTable(cid) {
       html += renderStudentRow(s, cid, rowNo++, g.subjects, editable);
     });
   });
- 
+
   html += `</tbody></table></div></div>`;
   pc.innerHTML = html;
   computeRanks(cid);
 }
- 
+
 function renderStudentRow(s, cid, rowNo, subjects, editable) {
   const marks = marksData[cid]?.[s.id] || {};
   let total = 0, cnt = 0;
@@ -788,7 +847,7 @@ function renderStudentRow(s, cid, rowNo, subjects, editable) {
   const passed = cnt > 0 && parseFloat(avg) >= 35;
   const isMale = s.gender === "Male";
   const gColor = isMale ? "#38bdf8" : "#f472b6";
- 
+
   let html = `<tr>
     <td style="color:var(--text-muted);font-size:.75rem;">${rowNo}</td>
     <td style="font-size:.78rem;color:var(--text-muted);">${s.indexNo||"—"}</td>
@@ -820,7 +879,7 @@ function renderStudentRow(s, cid, rowNo, subjects, editable) {
     <td class="rank-num" id="rk_${rSafe}_${s.id}">—</td></tr>`;
   return html;
 }
- 
+
 function editCell(td, cid, sid, subject) {
   if (td.querySelector("input")) return;
   const cur = marksData[cid]?.[sid]?.[subject] || "";
@@ -864,7 +923,7 @@ function computeRanks(cid) {
     el.className = `rank-num rank-${rank<=3?rank:""}`;
   });
 }
- 
+
 // ════════════════════════════════════════════════════════════════
 //  MANAGE SUBJECTS MODAL
 // ════════════════════════════════════════════════════════════════
@@ -889,17 +948,159 @@ function manageSubjects(cid) {
   document.getElementById("modal-container").appendChild(overlay);
   setTimeout(() => document.getElementById("subj-ta")?.focus(), 100);
 }
-function saveSubjects(cid) {
+async function saveSubjects(cid) {
   const ta = document.getElementById("subj-ta");
   const subs = ta.value.split("\n").map(s=>s.trim()).filter(Boolean);
   if (!subs.length) { toast("Please enter at least one subject","warning"); return; }
-  saveSubjectsForClass(cid, subs);
-  loadMarks(cid);
-  document.querySelector(".modal-overlay")?.remove();
-  renderTable(cid);
-  showStatus("✅ Subjects updated!", "ok");
+  try {
+    await saveSubjectsForClass(cid, subs);
+    loadMarks(cid);
+    document.querySelector(".modal-overlay")?.remove();
+    renderTable(cid);
+    showStatus("✅ Subjects updated!", "ok");
+  } catch(e) {
+    toast("Failed to save subjects: " + e.message, "error");
+  }
 }
- 
+
+// ════════════════════════════════════════════════════════════════
+//  MANAGE CLASSES (Principal only) — adds to Firestore "classes"
+//  New classes instantly appear in the Teacher Management dropdown too.
+// ════════════════════════════════════════════════════════════════
+function slugifyClassName(name) {
+  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"") || ("class_" + Date.now());
+}
+
+function openManageClasses() {
+  if (!currentUser || currentUser.role !== "principal") return;
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  const rows = Object.keys(CLASS_MAP).sort().map(cid => {
+    const c = CLASS_MAP[cid];
+    const subCount = Array.isArray(c.subjects) && c.subjects.length ? c.subjects.length : (defaultSubjects(cid).length);
+    return `<div class="glass" style="padding:.6rem .9rem;display:flex;align-items:center;justify-content:between;gap:.6rem;margin-bottom:.5rem;border-radius:10px;">
+      <div style="flex:1;"><strong style="font-size:.88rem;">${c.name||cid}</strong>
+        <div style="font-size:.72rem;color:var(--text-muted);">${subCount} subjects · ${GRADES[cid]?.students.length||0} students</div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="this.closest('.modal-overlay').remove(); manageSubjects('${esc(cid)}')"><i class="fas fa-book"></i> Subjects</button>
+    </div>`;
+  }).join("") || `<p style="color:var(--text-muted);font-size:.85rem;">No classes yet. Add your first class below.</p>`;
+
+  overlay.innerHTML = `
+    <div class="glass modal">
+      <div class="modal-header">
+        <h3><i class="fas fa-school" style="color:var(--sky);margin-right:.5rem;"></i>Manage Classes</h3>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()"><i class="fas fa-times"></i></button>
+      </div>
+      <div style="max-height:280px;overflow-y:auto;margin-bottom:1rem;">${rows}</div>
+      <div class="input-group">
+        <label><i class="fas fa-plus"></i> New Class Name</label>
+        <input type="text" id="new-class-name" class="form-control" placeholder="e.g. Grade 10 B"/>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close</button>
+        <button class="btn btn-primary" onclick="addNewClass()"><i class="fas fa-save"></i> Add Class</button>
+      </div>
+    </div>`;
+  overlay.addEventListener("click", e => { if (e.target===overlay) overlay.remove(); });
+  document.getElementById("modal-container").appendChild(overlay);
+  setTimeout(() => document.getElementById("new-class-name")?.focus(), 100);
+}
+
+async function addNewClass() {
+  const nameInput = document.getElementById("new-class-name");
+  const name = nameInput.value.trim();
+  if (!name) { toast("Please enter a class name", "warning"); return; }
+  const cid = slugifyClassName(name);
+  try {
+    const { db, doc, setDoc, getDoc } = window.FB;
+    const existing = await getDoc(doc(db, "classes", cid));
+    if (existing.exists()) { toast("A class with this name already exists", "error"); return; }
+    await setDoc(doc(db, "classes", cid), { name, subjects: defaultSubjects(cid) });
+    toast("Class added: " + name, "success");
+    document.querySelector(".modal-overlay")?.remove();
+    await initMarks();
+  } catch(e) {
+    toast("Failed to add class: " + e.message, "error");
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  STUDENT ORDER (Principal only) — updates registerOrder in Firestore
+// ════════════════════════════════════════════════════════════════
+let reorderCid = null;
+let reorderList = [];
+
+function openReorderStudents(cidPreset) {
+  if (!currentUser || currentUser.role !== "principal") return;
+  const classIds = Object.keys(GRADES).sort();
+  if (!classIds.length) { toast("No classes available yet", "warning"); return; }
+  reorderCid = cidPreset || classIds[0];
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.id = "reorder-overlay";
+  overlay.innerHTML = `
+    <div class="glass modal" style="max-width:480px;">
+      <div class="modal-header">
+        <h3><i class="fas fa-arrows-alt-v" style="color:var(--sky);margin-right:.5rem;"></i>Student Order</h3>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="input-group">
+        <label>Class</label>
+        <select id="reorder-class-select" class="form-control" onchange="switchReorderClass(this.value)">
+          ${classIds.map(cid => `<option value="${cid}" ${cid===reorderCid?"selected":""}>${GRADES[cid].name}</option>`).join("")}
+        </select>
+      </div>
+      <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:.6rem;"><i class="fas fa-info-circle"></i> Use the up/down arrows to reorder. This order applies to Marks, Attendance and Class Register.</p>
+      <div id="reorder-list" style="max-height:320px;overflow-y:auto;"></div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveReorder()"><i class="fas fa-save"></i> Save Order</button>
+      </div>
+    </div>`;
+  overlay.addEventListener("click", e => { if (e.target===overlay) overlay.remove(); });
+  document.getElementById("modal-container").appendChild(overlay);
+  renderReorderList();
+}
+
+function switchReorderClass(cid) {
+  reorderCid = cid;
+  renderReorderList();
+}
+
+function renderReorderList() {
+  reorderList = [...(GRADES[reorderCid]?.students || [])];
+  const el = document.getElementById("reorder-list");
+  if (!el) return;
+  el.innerHTML = reorderList.map((s, i) => `
+    <div class="glass" style="display:flex;align-items:center;gap:.6rem;padding:.5rem .75rem;margin-bottom:.4rem;border-radius:8px;">
+      <span style="color:var(--text-muted);font-size:.78rem;width:22px;">${i+1}</span>
+      <span style="flex:1;font-size:.85rem;">${s.name||"—"}</span>
+      <button class="btn btn-outline btn-sm" style="padding:.25rem .55rem;" onclick="moveStudent(${i},-1)" ${i===0?"disabled":""}><i class="fas fa-chevron-up"></i></button>
+      <button class="btn btn-outline btn-sm" style="padding:.25rem .55rem;" onclick="moveStudent(${i},1)" ${i===reorderList.length-1?"disabled":""}><i class="fas fa-chevron-down"></i></button>
+    </div>`).join("") || `<p style="color:var(--text-muted);font-size:.85rem;">No students in this class.</p>`;
+}
+
+function moveStudent(index, dir) {
+  const target = index + dir;
+  if (target < 0 || target >= reorderList.length) return;
+  [reorderList[index], reorderList[target]] = [reorderList[target], reorderList[index]];
+  renderReorderList();
+}
+
+async function saveReorder() {
+  try {
+    const { db, doc, updateDoc } = window.FB;
+    await Promise.all(reorderList.map((s, i) => updateDoc(doc(db, "students", s.id), { registerOrder: i })));
+    GRADES[reorderCid].students = reorderList;
+    toast("Student order saved", "success");
+    document.getElementById("reorder-overlay")?.remove();
+    if (currentGrade === reorderCid) renderTable(reorderCid);
+  } catch(e) {
+    toast("Failed to save order: " + e.message, "error");
+  }
+}
+
 // ════════════════════════════════════════════════════════════════
 //  SUMMARY & PRINT
 // ════════════════════════════════════════════════════════════════
@@ -939,7 +1140,7 @@ function showSummary(cid) {
     });
   }, 100);
 }
- 
+
 function buildSummaryHTML(cid) {
   const g = GRADES[cid];
   const today = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"2-digit",year:"numeric"});
@@ -955,17 +1156,17 @@ function buildSummaryHTML(cid) {
   const passing = sorted.filter(s=>parseFloat(s.avg)>=35).length;
   const topStudent = sorted[0] || {};
   const classAvg = sorted.length>0?(sorted.reduce((a,b)=>a+b.total,0)/sorted.length/g.subjects.length).toFixed(1):"—";
- 
+
   const boys  = withRank.filter(s=>s.gender==="Male");
   const girls = withRank.filter(s=>s.gender!=="Male");
   const groups = (boys.length&&girls.length) ? [{label:"👦 Boys",students:boys},{label:"👧 Girls",students:girls}] : [{label:"",students:withRank}];
- 
+
   // Grade distribution counts
   const gradeA = sorted.filter(s=>parseFloat(s.avg)>=75).length;
   const gradeB = sorted.filter(s=>parseFloat(s.avg)>=55&&parseFloat(s.avg)<75).length;
   const gradeC = sorted.filter(s=>parseFloat(s.avg)>=35&&parseFloat(s.avg)<55).length;
   const gradeF = sorted.filter(s=>parseFloat(s.avg)<35).length;
- 
+
   // Stats
   let html = `
     <div class="section-header">
@@ -976,7 +1177,7 @@ function buildSummaryHTML(cid) {
         <button class="btn btn-outline btn-sm" onclick="showGrade('${esc(cid)}')"><i class="fas fa-arrow-left"></i> Back to Marks</button>
       </div>
     </div>
- 
+
     <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:1.25rem;">
       <div class="stat-card glass stat-blue"><div class="stat-icon"><i class="fas fa-user-graduate"></i></div><div class="stat-value">${cnt}</div><div class="stat-label">Total Students</div></div>
       <div class="stat-card glass stat-green"><div class="stat-icon"><i class="fas fa-check-circle"></i></div><div class="stat-value">${passing}</div><div class="stat-label">Passed</div></div>
@@ -984,7 +1185,7 @@ function buildSummaryHTML(cid) {
       <div class="stat-card glass stat-cyan"><div class="stat-icon"><i class="fas fa-percentage"></i></div><div class="stat-value">${classAvg}%</div><div class="stat-label">Class Avg</div></div>
       <div class="stat-card glass stat-orange"><div class="stat-icon"><i class="fas fa-trophy"></i></div><div class="stat-value" style="font-size:1rem;line-height:1.3;margin-top:.25rem;">${topStudent.name||"—"}</div><div class="stat-label">Rank 1</div></div>
     </div>
- 
+
     <!-- Grade Distribution -->
     <div class="glass card" style="margin-bottom:1.25rem;padding:1rem 1.25rem;">
       <h3 style="font-size:.88rem;font-weight:800;margin-bottom:.9rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;"><i class="fas fa-chart-bar" style="color:var(--cyan);margin-right:.4rem;"></i>Grade Distribution</h3>
@@ -1001,19 +1202,19 @@ function buildSummaryHTML(cid) {
         }).join("")}
       </div>
     </div>`;
- 
+
   // Subject averages chart data
   const subjectAvgs = g.subjects.map(sub => {
     const vals = g.students.map(s => parseFloat(marksData[cid]?.[s.id]?.[sub])).filter(v => !isNaN(v));
     return vals.length > 0 ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : null;
   });
- 
+
   html += `
     <div class="glass card" style="margin-bottom:1.25rem;padding:1rem 1.25rem;">
       <h3 style="font-size:.88rem;font-weight:800;margin-bottom:.85rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;"><i class="fas fa-chart-line" style="color:var(--warning);margin-right:.4rem;"></i>Subject Averages</h3>
       <div style="position:relative;height:200px;"><canvas id="subj-avg-chart"></canvas></div>
     </div>
- 
+
     <div class="glass card" style="padding:0;margin-bottom:1.25rem;">
       <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--glass-border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;">
         <h3 style="font-size:.95rem;font-weight:800;"><i class="fas fa-table" style="color:var(--blue-accent);margin-right:.5rem;"></i>Results Table</h3>
@@ -1023,7 +1224,7 @@ function buildSummaryHTML(cid) {
         <th>Rank</th><th>#</th><th>Index</th><th>Name</th>`;
   g.subjects.forEach(s => html += `<th style="font-size:.65rem;">${s}</th>`);
   html += `<th>Total</th><th>Avg</th></tr></thead><tbody>`;
- 
+
   let no = 1;
   groups.forEach(grp => {
     if (grp.label) {
@@ -1048,7 +1249,7 @@ function buildSummaryHTML(cid) {
     });
   });
   html += `</tbody></table></div>`;
- 
+
   // Signatures
   html += `<div class="sig-section">
     <div>
@@ -1073,10 +1274,10 @@ function buildSummaryHTML(cid) {
       <div class="sig-date-row"><span class="sig-date-label">Date :</span><input class="sig-date-input" type="text" value="${today}"/></div>
     </div>
   </div></div>`;
- 
+
   return html;
 }
- 
+
 function doPrint(cid) {
   const g = GRADES[cid];
   const now = new Date();
@@ -1091,7 +1292,7 @@ function doPrint(cid) {
   document.getElementById("print-content").innerHTML = tmp.innerHTML;
   window.print();
 }
- 
+
 // ════════════════════════════════════════════════════════════════
 //  TOAST
 // ════════════════════════════════════════════════════════════════
@@ -1103,7 +1304,7 @@ function toast(msg, type="info") {
   document.getElementById("toast-container").appendChild(t);
   setTimeout(() => { t.style.animation="slideOut .35s ease forwards"; setTimeout(()=>t.remove(),350); }, 3000);
 }
- 
+
 // ════════════════════════════════════════════════════════════════
 //  SEARCH / FILTER TABLE
 // ════════════════════════════════════════════════════════════════
@@ -1114,7 +1315,7 @@ function filterMarksTable() {
     tr.style.display = !q || name.includes(q) ? "" : "none";
   });
 }
- 
+
 // ════════════════════════════════════════════════════════════════
 //  CSV EXPORT
 // ════════════════════════════════════════════════════════════════
@@ -1141,7 +1342,7 @@ function exportMarksCSV(cid) {
   a.click();
   toast("CSV downloaded!", "success");
 }
- 
+
 // ════════════════════════════════════════════════════════════════
 //  KEYBOARD SHORTCUTS
 // ════════════════════════════════════════════════════════════════
