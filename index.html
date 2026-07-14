@@ -265,8 +265,9 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 .score-a{color:#10b981;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3)}
 .score-b{color:var(--sky);background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.25)}
 .score-c{color:var(--warning);background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25)}
+.score-s{color:var(--late);background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.3)}
 .score-f{color:var(--danger);background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.25)}
-.score-val.score-a:hover,.score-val.score-b:hover,.score-val.score-c:hover,.score-val.score-f:hover,.score-val.empty:hover{filter:brightness(1.3)}
+.score-val.score-a:hover,.score-val.score-b:hover,.score-val.score-c:hover,.score-val.score-s:hover,.score-val.score-f:hover,.score-val.empty:hover{filter:brightness(1.3)}
 
 td.editable input{ width:58px; padding:4px 6px; border:2px solid var(--blue-accent); border-radius:8px; text-align:center; font-size:.85rem; font-family:'Nunito',sans-serif; font-weight:700; color:var(--text-main); outline:none; background:rgba(37,99,235,.2); }
 
@@ -657,29 +658,48 @@ async function initMarks() {
   }
 }
 
-function isClassTeacherOf(cid) {
+// Subject names must line up between what's typed in Teacher Management and what's
+// configured for a class (via Edit Subjects). Compare loosely (trim + case-insensitive)
+// so things like "Maths " vs "maths" still match instead of silently locking editing.
+function subjectsMatch(a, b) {
+  return !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+}
+
+// Is this account assigned to this class as its class teacher?
+// A class teacher gets FULL rights (every subject) in that one class —
+// this is independent of any subject also set on their record.
+function isAssignedToClass(cid) {
   if (!currentUser) return false;
   const className = GRADES[cid]?.name || CLASS_MAP[cid]?.name || cid;
   const ac = currentUser.assignedClasses || [];
   return ac.includes(className) || ac.includes(cid);
 }
+function isClassTeacherOf(cid) {
+  return isAssignedToClass(cid);
+}
 
 function canAccess(cid) {
   if (!currentUser) return false;
   if (currentUser.role === "principal") return true;
-  if (isClassTeacherOf(cid)) return true;                 // class teacher: full access to their own class
-  if (currentUser.subject && currentUser.subject.trim()) return true; // subject teacher: can view all classes to mark their subject
-  if (!currentUser.className && !currentUser.subject) return true;    // no assignment at all (legacy/unrestricted account)
+  if (isAssignedToClass(cid)) return true;   // their own class (full class teacher)
+  const hasSubject = !!(currentUser.subject && currentUser.subject.trim());
+  if (hasSubject) return true;               // subject teacher: can view every class to mark their subject
+  const hasClass = !!(currentUser.assignedClasses && currentUser.assignedClasses.length);
+  if (!hasClass && !hasSubject) return true; // no assignment at all (legacy/unrestricted account)
   return false;
 }
 
 // Can this user edit the given subject's marks in this class?
+// Class assignment and subject assignment stack: a "Grade 11 + Maths" teacher gets
+// full edit rights in Grade 11 (every subject) AND can edit Maths in every other class too.
 function canEditSubject(cid, subject) {
   if (!currentUser) return false;
   if (currentUser.role === "principal") return true;
-  if (isClassTeacherOf(cid)) return true;                                     // class teacher edits every subject in their class
-  if (currentUser.subject && currentUser.subject === subject) return true;    // subject teacher edits only their subject, in any class
-  if (!currentUser.className && !currentUser.subject) return true;           // unrestricted account
+  if (isClassTeacherOf(cid)) return true;    // full class teacher: every subject in their own class
+  const hasSubject = !!(currentUser.subject && currentUser.subject.trim());
+  if (hasSubject && subjectsMatch(currentUser.subject, subject)) return true; // their subject, in any class
+  const hasClass = !!(currentUser.assignedClasses && currentUser.assignedClasses.length);
+  if (!hasClass && !hasSubject) return true; // unrestricted account
   return false;
 }
 
@@ -688,8 +708,10 @@ function hasAnyEditRights(cid) {
   if (!currentUser) return false;
   if (currentUser.role === "principal") return true;
   if (isClassTeacherOf(cid)) return true;
+  const hasSubject = !!(currentUser.subject && currentUser.subject.trim());
+  if (!hasSubject) return false;
   const subs = GRADES[cid]?.subjects || [];
-  return currentUser.subject && subs.includes(currentUser.subject);
+  return subs.some(s => subjectsMatch(s, currentUser.subject));
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -804,9 +826,19 @@ function getScoreClass(v) {
   const n = parseFloat(v);
   if (isNaN(n)||v==="") return "empty";
   if (n>=75) return "score-a";
-  if (n>=55) return "score-b";
-  if (n>=35) return "score-c";
+  if (n>=60) return "score-b";
+  if (n>=45) return "score-c";
+  if (n>35) return "score-s";
   return "score-f";
+}
+function getScoreLetter(v) {
+  const n = parseFloat(v);
+  if (isNaN(n)||v==="") return "";
+  if (n>=75) return "A";
+  if (n>=60) return "B";
+  if (n>=45) return "C";
+  if (n>35) return "S";
+  return "W";
 }
 
 function renderTable(cid) {
@@ -814,6 +846,10 @@ function renderTable(cid) {
   const editable = hasAnyEditRights(cid);
   const isManager = currentUser.role === "principal" || isClassTeacherOf(cid);
   const pc = document.getElementById("page-content");
+
+  const hasSubjectAssigned = !!(currentUser.role!=="principal" && !isClassTeacherOf(cid) && currentUser.subject && currentUser.subject.trim());
+  const subjectExistsHere = hasSubjectAssigned && g.subjects.some(s => subjectsMatch(s, currentUser.subject));
+  const subjectMismatch = hasSubjectAssigned && !subjectExistsHere;
 
   const boys  = g.students.filter(s => s.gender === "Male");
   const girls = g.students.filter(s => s.gender !== "Male");
@@ -833,16 +869,28 @@ function renderTable(cid) {
         </div>
         <button class="btn btn-outline btn-sm" onclick="exportMarksCSV('${esc(cid)}')"><i class="fas fa-download"></i> CSV</button>
         ${isManager ? `<button class="btn btn-outline btn-sm" onclick="manageSubjects('${esc(cid)}')"><i class="fas fa-book"></i> Edit Subjects</button>` : ""}
+        ${isManager ? `<button class="btn btn-outline btn-sm" onclick="openReorderStudents('${esc(cid)}')"><i class="fas fa-arrows-alt-v"></i> Student Order</button>` : ""}
         <button class="btn btn-warning btn-sm" onclick="showSummary('${esc(cid)}')"><i class="fas fa-chart-bar"></i> Summary & Print</button>
       </div>
     </div>
 
+    ${subjectMismatch ? `
+    <div class="glass card" style="margin-bottom:1rem;padding:.7rem 1rem;border:1px solid rgba(239,68,68,.4);background:rgba(239,68,68,.08);">
+      <span style="font-size:.8rem;color:var(--danger);"><i class="fas fa-triangle-exclamation"></i>
+        Your assigned subject "<strong>${esc(currentUser.subject)}</strong>" isn't in ${esc(g.name)}'s subject list
+        (${g.subjects.map(s=>esc(s)).join(", ") || "none set"}), so no column here is editable for you yet.
+        Ask the principal to either add "${esc(currentUser.subject)}" via <strong>Edit Subjects</strong> for this class,
+        or fix the subject name on your account in Teacher Management so it matches exactly.
+      </span>
+    </div>` : ""}
+
     <div class="glass card" style="margin-bottom:1rem;padding:.7rem 1rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;">
       <span style="font-size:.78rem;color:var(--text-muted);">Score colours:</span>
       <span class="score-val score-a">≥75 A</span>
-      <span class="score-val score-b">≥55 B</span>
-      <span class="score-val score-c">≥35 C</span>
-      <span class="score-val score-f">&lt;35 F</span>
+      <span class="score-val score-b">≥60 B</span>
+      <span class="score-val score-c">≥45 C</span>
+      <span class="score-val score-s">&gt;35 S</span>
+      <span class="score-val score-f">&lt;35 W</span>
       ${editable ? `<span style="font-size:.78rem;color:var(--text-muted);margin-left:auto;"><i class="fas fa-mouse-pointer"></i> Click any score to edit · <kbd style="background:rgba(255,255,255,.1);border:1px solid var(--glass-border);border-radius:4px;padding:.1rem .35rem;font-size:.72rem;">Tab</kbd> next cell</span>` : ""}
       ${(!isManager && currentUser.role!=="principal" && currentUser.subject) ? `<span style="font-size:.78rem;color:var(--sky);margin-left:auto;"><i class="fas fa-lock"></i> You can only edit <strong>${currentUser.subject}</strong> marks here</span>` : ""}
     </div>
@@ -851,7 +899,7 @@ function renderTable(cid) {
       <div class="table-wrapper"><table>
         <thead><tr>
           <th>#</th><th>Index</th><th>Name</th>`;
-  g.subjects.forEach(s => html += `<th style="font-size:.7rem;${currentUser.role!=="principal" && !isClassTeacherOf(cid) && currentUser.subject===s ? 'color:var(--sky);' : ''}">${s}</th>`);
+  g.subjects.forEach(s => html += `<th style="font-size:.7rem;${currentUser.role!=="principal" && !isClassTeacherOf(cid) && subjectsMatch(currentUser.subject,s) ? 'color:var(--sky);' : ''}">${s}</th>`);
   html += `<th>Total</th><th>Avg</th><th>Rank</th></tr></thead><tbody>`;
 
   let rowNo = 1;
@@ -898,7 +946,7 @@ function renderStudentRow(s, cid, rowNo, subjects) {
   });
   const rSafe = cid.replace(/[^a-z0-9]/gi,"_");
   const avgNum = parseFloat(avg);
-  const avgColor = avgNum>=75?"#10b981":avgNum>=55?"#38bdf8":avgNum>=35?"#f59e0b":"#ef4444";
+  const avgColor = avgNum>=75?"#10b981":avgNum>=60?"#38bdf8":avgNum>=45?"#f59e0b":avgNum>35?"#f97316":"#ef4444";
   html += `<td class="total-cell">${cnt>0?total:"—"}</td>
     <td class="avg-cell">
       ${avg ? `<span style="color:${avgColor};font-weight:800;">${avg}</span>
@@ -1061,11 +1109,20 @@ async function addNewClass() {
 let reorderCid = null;
 let reorderList = [];
 
+function canManageOrder(cid) {
+  if (!currentUser) return false;
+  if (currentUser.role === "principal") return true;
+  if (cid) return isClassTeacherOf(cid);
+  return Object.keys(GRADES).some(c => isClassTeacherOf(c));
+}
+
 function openReorderStudents(cidPreset) {
-  if (!currentUser || currentUser.role !== "principal") return;
-  const classIds = Object.keys(GRADES).sort();
+  if (!canManageOrder(cidPreset)) { toast("You don't have permission to manage student order for this class", "error"); return; }
+  const classIds = currentUser.role === "principal"
+    ? Object.keys(GRADES).sort()
+    : Object.keys(GRADES).filter(cid => isClassTeacherOf(cid)).sort();
   if (!classIds.length) { toast("No classes available yet", "warning"); return; }
-  reorderCid = cidPreset || classIds[0];
+  reorderCid = (cidPreset && classIds.includes(cidPreset)) ? cidPreset : classIds[0];
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay";
   overlay.id = "reorder-overlay";
@@ -1075,14 +1132,27 @@ function openReorderStudents(cidPreset) {
         <h3><i class="fas fa-arrows-alt-v" style="color:var(--sky);margin-right:.5rem;"></i>Student Order</h3>
         <button class="modal-close" onclick="this.closest('.modal-overlay').remove()"><i class="fas fa-times"></i></button>
       </div>
+      ${classIds.length > 1 ? `
       <div class="input-group">
         <label>Class</label>
         <select id="reorder-class-select" class="form-control" onchange="switchReorderClass(this.value)">
           ${classIds.map(cid => `<option value="${cid}" ${cid===reorderCid?"selected":""}>${GRADES[cid].name}</option>`).join("")}
         </select>
+      </div>` : ""}
+      <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:.6rem;"><i class="fas fa-info-circle"></i> Boys and Girls are ordered separately. Use the up/down arrows any time, or auto-align by index number.</p>
+      <div class="flex gap-2" style="margin-bottom:.7rem;flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" onclick="autoAlignThisClass()"><i class="fas fa-sort-numeric-down"></i> Auto-Align by Index (This Class)</button>
+        ${currentUser.role === "principal" ? `<button class="btn btn-outline btn-sm" onclick="autoAlignAllClasses()"><i class="fas fa-magic"></i> Auto-Align All Classes</button>` : ""}
       </div>
-      <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:.6rem;"><i class="fas fa-info-circle"></i> Use the up/down arrows to reorder. This order applies to Marks, Attendance and Class Register.</p>
-      <div id="reorder-list" style="max-height:320px;overflow-y:auto;"></div>
+      <div id="reorder-list" style="max-height:320px;overflow-y:auto;margin-bottom:.9rem;"></div>
+      <div class="glass" style="padding:.7rem .8rem;border-radius:10px;margin-bottom:.5rem;">
+        <label style="font-size:.75rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:.5rem;"><i class="fas fa-user-plus"></i> Add Student</label>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+          <input type="text" id="new-student-index" class="form-control" placeholder="Index No." style="max-width:110px;"/>
+          <input type="text" id="new-student-name" class="form-control" placeholder="Student Name" style="flex:1;min-width:140px;"/>
+          <button class="btn btn-primary btn-sm" onclick="addStudentToClass()"><i class="fas fa-plus"></i> Add</button>
+        </div>
+      </div>
       <div class="modal-footer">
         <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
         <button class="btn btn-primary" onclick="saveReorder()"><i class="fas fa-save"></i> Save Order</button>
@@ -1090,35 +1160,167 @@ function openReorderStudents(cidPreset) {
     </div>`;
   overlay.addEventListener("click", e => { if (e.target===overlay) overlay.remove(); });
   document.getElementById("modal-container").appendChild(overlay);
-  renderReorderList();
+  initReorderList();
 }
 
 function switchReorderClass(cid) {
+  if (!canManageOrder(cid)) return;
   reorderCid = cid;
+  initReorderList();
+}
+
+// Loads the working copy of the student list for the current class.
+// Only called when the modal opens or the class changes — NOT on every render,
+// so in-progress moves/edits aren't clobbered.
+function initReorderList() {
+  reorderList = [...(GRADES[reorderCid]?.students || [])];
   renderReorderList();
 }
 
-function renderReorderList() {
-  reorderList = [...(GRADES[reorderCid]?.students || [])];
-  const el = document.getElementById("reorder-list");
-  if (!el) return;
-  el.innerHTML = reorderList.map((s, i) => `
-    <div class="glass" style="display:flex;align-items:center;gap:.6rem;padding:.5rem .75rem;margin-bottom:.4rem;border-radius:8px;">
-      <span style="color:var(--text-muted);font-size:.78rem;width:22px;">${i+1}</span>
-      <span style="flex:1;font-size:.85rem;">${s.name||"—"}</span>
-      <button class="btn btn-outline btn-sm" style="padding:.25rem .55rem;" onclick="moveStudent(${i},-1)" ${i===0?"disabled":""}><i class="fas fa-chevron-up"></i></button>
-      <button class="btn btn-outline btn-sm" style="padding:.25rem .55rem;" onclick="moveStudent(${i},1)" ${i===reorderList.length-1?"disabled":""}><i class="fas fa-chevron-down"></i></button>
-    </div>`).join("") || `<p style="color:var(--text-muted);font-size:.85rem;">No students in this class.</p>`;
+function genderKey(s) { return s.gender === "Male" ? "M" : (s.gender ? "F" : "U"); }
+
+function groupByGender(list) {
+  const boys  = list.filter(s => genderKey(s) === "M");
+  const girls = list.filter(s => genderKey(s) === "F");
+  const rest  = list.filter(s => genderKey(s) === "U");
+  const groups = [];
+  if (boys.length)  groups.push({ label: "👦 Boys",  items: boys });
+  if (girls.length) groups.push({ label: "👧 Girls", items: girls });
+  if (rest.length)  groups.push({ label: (boys.length||girls.length) ? "Other" : "", items: rest });
+  return groups;
 }
 
+function sortByIndexNo(arr) {
+  return [...arr].sort((a, b) => {
+    const an = parseFloat(a.indexNo), bn = parseFloat(b.indexNo);
+    const aValid = !isNaN(an), bValid = !isNaN(bn);
+    if (aValid && bValid) return an - bn;
+    if (aValid) return -1;
+    if (bValid) return 1;
+    return String(a.indexNo||"").localeCompare(String(b.indexNo||""));
+  });
+}
+
+// Re-orders a student list: Boys and Girls kept as separate blocks,
+// each block sorted internally by index number ascending.
+function autoAlignList(list) {
+  const groups = groupByGender(list);
+  const out = [];
+  groups.forEach(g => out.push(...sortByIndexNo(g.items)));
+  return out;
+}
+
+function autoAlignThisClass() {
+  reorderList = autoAlignList(reorderList);
+  renderReorderList();
+  toast("Aligned by index number (Boys/Girls kept separate) — click Save Order to apply", "info");
+}
+
+async function autoAlignAllClasses() {
+  if (!currentUser || currentUser.role !== "principal") return;
+  if (!confirm("Auto-align every class by index number (Boys/Girls kept separate) and save immediately?")) return;
+  try {
+    const { db, doc, updateDoc } = window.FB;
+    const writes = [];
+    Object.keys(GRADES).forEach(cid => {
+      const aligned = autoAlignList(GRADES[cid].students || []);
+      GRADES[cid].students = aligned;
+      aligned.forEach((s, i) => writes.push(updateDoc(doc(db, "students", s.id), { registerOrder: i })));
+    });
+    await Promise.all(writes);
+    if (reorderCid) reorderList = [...(GRADES[reorderCid].students || [])];
+    renderReorderList();
+    toast("All classes aligned by index number", "success");
+    if (currentGrade) renderTable(currentGrade);
+  } catch(e) {
+    toast("Failed to auto-align: " + e.message, "error");
+  }
+}
+
+// Renders from the current in-memory reorderList — does NOT reload from
+// GRADES, so moves/adds/removes made in this session are preserved.
+function renderReorderList() {
+  const el = document.getElementById("reorder-list");
+  if (!el) return;
+  if (!reorderList.length) {
+    el.innerHTML = `<p style="color:var(--text-muted);font-size:.85rem;">No students in this class.</p>`;
+    return;
+  }
+  const groups = groupByGender(reorderList);
+  let html = "";
+  groups.forEach(grp => {
+    if (grp.label) html += `<div style="font-size:.7rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;padding:.4rem .2rem .3rem;">${grp.label}</div>`;
+    grp.items.forEach((s, gi) => {
+      const globalIndex = reorderList.indexOf(s);
+      html += `
+      <div class="glass" style="display:flex;align-items:center;gap:.6rem;padding:.5rem .75rem;margin-bottom:.4rem;border-radius:8px;">
+        <span style="color:var(--text-muted);font-size:.78rem;width:56px;">${s.indexNo||"—"}</span>
+        <span style="flex:1;font-size:.85rem;">${s.name||"—"}</span>
+        <button class="btn btn-outline btn-sm" style="padding:.25rem .55rem;" onclick="moveStudent(${globalIndex},-1)" ${gi===0?"disabled":""}><i class="fas fa-chevron-up"></i></button>
+        <button class="btn btn-outline btn-sm" style="padding:.25rem .55rem;" onclick="moveStudent(${globalIndex},1)" ${gi===grp.items.length-1?"disabled":""}><i class="fas fa-chevron-down"></i></button>
+        <button class="btn btn-danger btn-sm" style="padding:.25rem .55rem;" title="Remove student" onclick="removeStudentFromClass('${esc(s.id)}','${esc(s.name||"")}')"><i class="fas fa-trash"></i></button>
+      </div>`;
+    });
+  });
+  el.innerHTML = html;
+}
+
+async function addStudentToClass() {
+  if (!reorderCid || !canManageOrder(reorderCid)) return;
+  const idxInput = document.getElementById("new-student-index");
+  const nameInput = document.getElementById("new-student-name");
+  const indexNo = idxInput.value.trim();
+  const name = nameInput.value.trim();
+  if (!name) { toast("Please enter the student's name", "warning"); return; }
+  try {
+    const { db, collection, doc, setDoc, serverTimestamp } = window.FB;
+    const newRef = doc(collection(db, "students"));
+    const registerOrder = reorderList.length;
+    await setDoc(newRef, {
+      name, indexNo, classId: reorderCid, registerOrder,
+      createdAt: serverTimestamp ? serverTimestamp() : new Date()
+    });
+    const newStudent = { id: newRef.id, name, indexNo, classId: reorderCid, registerOrder };
+    reorderList.push(newStudent);
+    GRADES[reorderCid].students = [...reorderList];
+    idxInput.value = ""; nameInput.value = "";
+    renderReorderList();
+    toast("Student added: " + name, "success");
+    if (currentGrade === reorderCid) renderTable(reorderCid);
+  } catch(e) {
+    toast("Failed to add student: " + e.message, "error");
+  }
+}
+
+async function removeStudentFromClass(sid, name) {
+  if (!canManageOrder(reorderCid)) return;
+  if (!confirm(`Remove ${name || "this student"}? This cannot be undone.`)) return;
+  try {
+    const { db, doc, deleteDoc } = window.FB;
+    await deleteDoc(doc(db, "students", sid));
+    reorderList = reorderList.filter(s => s.id !== sid);
+    GRADES[reorderCid].students = [...reorderList];
+    renderReorderList();
+    toast(`Removed ${name || "student"}`, "success");
+    if (currentGrade === reorderCid) renderTable(reorderCid);
+  } catch(e) {
+    toast("Failed to remove student: " + e.message, "error");
+  }
+}
+
+// Swaps a student with its neighbour, but only within the same
+// gender group so Boys/Girls blocks never mix.
 function moveStudent(index, dir) {
   const target = index + dir;
   if (target < 0 || target >= reorderList.length) return;
-  [reorderList[index], reorderList[target]] = [reorderList[target], reorderList[index]];
+  const a = reorderList[index], b = reorderList[target];
+  if (genderKey(a) !== genderKey(b)) return;
+  [reorderList[index], reorderList[target]] = [b, a];
   renderReorderList();
 }
 
 async function saveReorder() {
+  if (!canManageOrder(reorderCid)) return;
   try {
     const { db, doc, updateDoc } = window.FB;
     await Promise.all(reorderList.map((s, i) => updateDoc(doc(db, "students", s.id), { registerOrder: i })));
@@ -1155,7 +1357,7 @@ function showSummary(cid) {
         labels: g.subjects,
         datasets: [{
           data: subjectAvgs,
-          backgroundColor: subjectAvgs.map(v => v==null?"rgba(255,255,255,.1)":v>=75?"rgba(16,185,129,.6)":v>=55?"rgba(56,189,248,.6)":v>=35?"rgba(245,158,11,.6)":"rgba(239,68,68,.6)"),
+          backgroundColor: subjectAvgs.map(v => v==null?"rgba(255,255,255,.1)":v>=75?"rgba(16,185,129,.6)":v>=60?"rgba(56,189,248,.6)":v>=45?"rgba(245,158,11,.6)":v>35?"rgba(249,115,22,.6)":"rgba(239,68,68,.6)"),
           borderRadius: 6, borderSkipped: false
         }]
       },
@@ -1183,7 +1385,7 @@ function buildSummaryHTML(cid) {
   const sorted = [...rawList].filter(x=>x.total>=0).sort((a,b)=>b.total-a.total);
   const withRank = rawList.map(s => ({ ...s, rank: sorted.findIndex(x=>x.id===s.id)>=0?sorted.findIndex(x=>x.id===s.id)+1:"—" }));
   const cnt = sorted.length;
-  const passing = sorted.filter(s=>parseFloat(s.avg)>=35).length;
+  const passing = sorted.filter(s=>parseFloat(s.avg)>35).length;
   const topStudent = sorted[0] || {};
   const classAvg = sorted.length>0?(sorted.reduce((a,b)=>a+b.total,0)/sorted.length/g.subjects.length).toFixed(1):"—";
 
@@ -1193,9 +1395,10 @@ function buildSummaryHTML(cid) {
 
   // Grade distribution counts
   const gradeA = sorted.filter(s=>parseFloat(s.avg)>=75).length;
-  const gradeB = sorted.filter(s=>parseFloat(s.avg)>=55&&parseFloat(s.avg)<75).length;
-  const gradeC = sorted.filter(s=>parseFloat(s.avg)>=35&&parseFloat(s.avg)<55).length;
-  const gradeF = sorted.filter(s=>parseFloat(s.avg)<35).length;
+  const gradeB = sorted.filter(s=>parseFloat(s.avg)>=60&&parseFloat(s.avg)<75).length;
+  const gradeC = sorted.filter(s=>parseFloat(s.avg)>=45&&parseFloat(s.avg)<60).length;
+  const gradeS = sorted.filter(s=>parseFloat(s.avg)>35&&parseFloat(s.avg)<45).length;
+  const gradeF = sorted.filter(s=>parseFloat(s.avg)<=35).length;
 
   // Stats
   let html = `
@@ -1220,7 +1423,7 @@ function buildSummaryHTML(cid) {
     <div class="glass card" style="margin-bottom:1.25rem;padding:1rem 1.25rem;">
       <h3 style="font-size:.88rem;font-weight:800;margin-bottom:.9rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;"><i class="fas fa-chart-bar" style="color:var(--cyan);margin-right:.4rem;"></i>Grade Distribution</h3>
       <div style="display:flex;gap:.75rem;align-items:flex-end;height:64px;">
-        ${[{label:"A ≥75",val:gradeA,color:"#10b981"},{label:"B ≥55",val:gradeB,color:"#38bdf8"},{label:"C ≥35",val:gradeC,color:"#f59e0b"},{label:"F <35",val:gradeF,color:"#ef4444"}].map(g2 => {
+        ${[{label:"A ≥75",val:gradeA,color:"#10b981"},{label:"B ≥60",val:gradeB,color:"#38bdf8"},{label:"C ≥45",val:gradeC,color:"#f59e0b"},{label:"S >35",val:gradeS,color:"#f97316"},{label:"W <35",val:gradeF,color:"#ef4444"}].map(g2 => {
           const pct = cnt > 0 ? Math.round(g2.val/cnt*100) : 0;
           return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:.3rem;">
             <span style="font-size:.72rem;font-weight:800;color:${g2.color};">${g2.val}</span>
