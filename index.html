@@ -313,13 +313,30 @@ td.editable input{ width:58px; padding:4px 6px; border:2px solid var(--blue-acce
 
 /* PRINT */
 @media print {
-  body{background:white!important;color:#1e293b!important}
+  @page{ size:A4 landscape; margin:8mm 9mm; }
+  html,body{width:100%;}
+  body{background:white!important;color:#1e293b!important;font-size:11px;}
   body::before{display:none!important}
   #app-shell,#sidebar,#topbar,.save-bar,.no-print{display:none!important}
   #print-area{display:block!important}
   #print-area .glass{background:white!important;border:1px solid #e2e8f0!important}
-  .sum-table th{background:#1a3a8f!important;color:white!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .sig-space{border-color:#333!important}
+  #print-area .summary-print-title{font-size:13px;color:#0f1f45;text-align:center;margin-bottom:.4rem;padding-bottom:.35rem;border-bottom:1px solid #cbd5e1;}
+  #print-area .section-header{display:block!important;margin-bottom:.4rem!important}
+  #print-area .stats-grid,#print-area canvas,#print-area [style*="chart"]{display:none!important}
+  #print-area > div[style*="border-bottom:3px double"]{padding:.4rem 0 .3rem!important;margin-bottom:.5rem!important;}
+  #print-area > div[style*="border-bottom:3px double"] img{width:38px!important;height:38px!important;}
+  #print-area > div[style*="border-bottom:3px double"] h1{font-size:14px!important}
+  #print-area .glass.card{padding:.5rem .6rem!important;margin-bottom:.5rem!important;}
+  .sum-table{font-size:9.5px!important}
+  .sum-table th{background:#1a3a8f!important;color:white!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:.25rem .35rem!important;font-size:7.5px!important}
+  .sum-table td{padding:.18rem .35rem!important}
+  .score-val{padding:1px 5px!important;min-width:0!important}
+  .sum-table thead{display:table-header-group}
+  .sum-table tbody tr{page-break-inside:avoid;break-inside:avoid}
+  .sig-space{border-color:#333!important;height:34px!important}
+  .sig-section{page-break-inside:avoid;break-inside:avoid;padding:.75rem .5rem .5rem!important;gap:1.25rem!important}
+  .sig-label,.sig-caption,.sig-date-label{font-size:9px!important}
+  .sig-name-input,.sig-date-input{font-size:10px!important}
   .score-a{color:#15803d!important;background:#dcfce7!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .score-b{color:#1d4ed8!important;background:#dbeafe!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .score-c{color:#d97706!important;background:#fef3c7!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -471,9 +488,13 @@ body.light .sig-name-input,body.light .sig-date-input{color:#1e293b;border-color
 
 <!-- PRINT AREA (hidden, shown only during print) -->
 <div id="print-area">
-  <div style="text-align:center;padding:1rem 0 .75rem;border-bottom:3px double #1a3a8f;margin-bottom:1rem;">
-    <h1 style="font-family:'Poppins',sans-serif;font-size:18px;font-weight:900;color:#0f1f45;">🏫 BD/Hindu College Welimada</h1>
-    <p id="print-date-line" style="font-size:12px;color:#64748b;margin-top:3px;"></p>
+  <div style="display:flex;align-items:center;justify-content:center;gap:14px;text-align:center;padding:1rem 0 .75rem;border-bottom:3px double #1a3a8f;margin-bottom:1rem;">
+    <img src="whc.png" alt="School Logo" style="width:58px;height:58px;object-fit:contain;flex-shrink:0;" onerror="this.style.display='none'"/>
+    <div>
+      <h1 style="font-family:'Poppins',sans-serif;font-size:18px;font-weight:900;color:#0f1f45;">BD/Hindu College Welimada</h1>
+      <p id="print-class-line" style="font-size:13px;font-weight:800;color:#1a3a8f;margin-top:2px;"></p>
+      <p id="print-date-line" style="font-size:12px;color:#64748b;margin-top:3px;"></p>
+    </div>
   </div>
   <div id="print-content"></div>
 </div>
@@ -1403,8 +1424,8 @@ function buildSummaryHTML(cid) {
   // Stats
   let html = `
     <div class="section-header">
-      <h2><i class="fas fa-chart-bar" style="color:var(--warning);margin-right:.5rem;"></i>${g.name} — Summary</h2>
-      <div class="flex gap-3 items-center" style="flex-wrap:wrap;">
+      <h2 class="summary-print-title"><i class="fas fa-chart-bar" style="color:var(--warning);margin-right:.5rem;"></i>${g.name} — Summary</h2>
+      <div class="flex gap-3 items-center no-print" style="flex-wrap:wrap;">
         <button class="btn btn-outline btn-sm" onclick="exportMarksCSV('${esc(cid)}')"><i class="fas fa-download"></i> CSV</button>
         <button class="btn btn-success btn-sm" onclick="doPrint('${esc(cid)}')"><i class="fas fa-print"></i> Print</button>
         <button class="btn btn-outline btn-sm" onclick="showGrade('${esc(cid)}')"><i class="fas fa-arrow-left"></i> Back to Marks</button>
@@ -1514,16 +1535,33 @@ function buildSummaryHTML(cid) {
 function doPrint(cid) {
   const g = GRADES[cid];
   const now = new Date();
+  document.getElementById("print-class-line").textContent = g.name;
   document.getElementById("print-date-line").textContent =
     "Printed: " + now.toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
   // Clone summary into print area
   const summaryHTML = buildSummaryHTML(cid);
   const tmp = document.createElement("div");
   tmp.innerHTML = summaryHTML;
-  // Remove action buttons
-  tmp.querySelectorAll(".section-header").forEach(el => el.remove());
+  // Remove only the action buttons (CSV / Print / Back) — keep the class-name title and results table
+  tmp.querySelectorAll(".no-print").forEach(el => el.remove());
   document.getElementById("print-content").innerHTML = tmp.innerHTML;
-  window.print();
+
+  // Auto-fit to a maximum of 2 A4-landscape pages, regardless of class size.
+  const printArea = document.getElementById("print-area");
+  printArea.style.display = "block";
+  printArea.style.zoom = "1";
+  void printArea.offsetHeight; // force reflow before measuring
+  const contentHeightPx = printArea.scrollHeight;
+  // Approx. usable px budget for 2 A4-landscape pages (8mm top/bottom margins) at 96dpi.
+  const budget = 2050;
+  const scale = contentHeightPx > budget ? Math.max(0.45, budget / contentHeightPx) : 1;
+  printArea.style.zoom = scale;
+
+  setTimeout(() => { window.print(); }, 50);
+  window.onafterprint = () => {
+    printArea.style.display = "";
+    printArea.style.zoom = "1";
+  };
 }
 
 // ════════════════════════════════════════════════════════════════
