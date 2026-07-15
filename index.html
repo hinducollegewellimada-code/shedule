@@ -421,6 +421,38 @@ body.light .sig-name-input,body.light .sig-date-input{color:#1e293b;border-color
   </div>
 </div>
 
+<!-- YEAR / TERM SELECTION -->
+<div id="page-period" class="hidden">
+  <div class="login-card glass">
+    <div class="login-logo">
+      <img src="whc.png" alt="School Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>🏫</text></svg>'"/>
+      <h1>BD/Hindu College<br>Welimada</h1>
+      <p>Select Year &amp; Term</p>
+    </div>
+    <div class="input-group">
+      <label><i class="fas fa-calendar"></i> Year</label>
+      <select id="period-year" class="form-control">
+        <option value="2026">2026</option>
+        <option value="2027">2027</option>
+        <option value="2028">2028</option>
+        <option value="2029">2029</option>
+        <option value="2030">2030</option>
+      </select>
+    </div>
+    <div class="input-group">
+      <label><i class="fas fa-layer-group"></i> Term</label>
+      <select id="period-term" class="form-control">
+        <option value="1">1st Term</option>
+        <option value="2">2nd Term</option>
+        <option value="3">3rd Term</option>
+      </select>
+    </div>
+    <button class="btn btn-primary login-btn" onclick="MARKS.confirmPeriod()">
+      <i class="fas fa-arrow-right"></i> Continue
+    </button>
+  </div>
+</div>
+
 <!-- APP SHELL -->
 <div id="app-shell" class="hidden">
   <div id="mobile-overlay" onclick="MARKS.closeMobile()"></div>
@@ -472,6 +504,7 @@ body.light .sig-name-input,body.light .sig-date-input{color:#1e293b;border-color
       <button id="mobile-menu-btn" onclick="MARKS.openMobile()"><i class="fas fa-bars"></i></button>
       <div id="page-title"><i class="fas fa-chart-bar" style="color:var(--blue-accent);margin-right:.5rem;"></i>Marks Schedule</div>
       <div class="topbar-actions">
+        <div class="badge badge-admin" id="topbar-period" style="font-size:.75rem;"></div>
         <div class="topbar-date" id="topbar-date"></div>
         <a href="attandance.html" style="display:inline-flex;align-items:center;gap:6px;background:rgba(6,182,212,.12);border:1px solid rgba(6,182,212,.35);color:#67e8f9;padding:.4rem .75rem;border-radius:8px;font-size:.8rem;font-weight:700;text-decoration:none;white-space:nowrap;">
           <i class="fas fa-clipboard-check"></i><span>Attendance</span>
@@ -516,6 +549,7 @@ let currentGrade = null;
 let marksData = {};
 let hasUnsaved = false;
 let GRADES = {};
+let currentPeriod = null; // { year, term } — asked fresh on every login
 
 // ════════════════════════════════════════════════════════════════
 //  FIREBASE INIT
@@ -525,8 +559,7 @@ window.addEventListener("firebaseReady", () => {
   const session = window.AUTH.getSession();
   if (session) {
     currentUser = session;
-    showApp();
-    initMarks();
+    document.getElementById("page-period").classList.remove("hidden");
   } else {
     document.getElementById("page-login").classList.remove("hidden");
   }
@@ -562,9 +595,22 @@ const MARKS = {
 
     if (!user) { errEl.style.display = "block"; return; }
     currentUser = user;
+    document.getElementById("page-login").classList.add("hidden");
+    document.getElementById("page-period").classList.remove("hidden");
+  },
+
+  confirmPeriod() {
+    const year = document.getElementById("period-year").value;
+    const term = document.getElementById("period-term").value;
+    currentPeriod = { year, term };
+    document.getElementById("page-period").classList.add("hidden");
     showApp();
     initMarks();
-    toast("Welcome back, " + user.name + "!", "success");
+    toast("Welcome back, " + currentUser.name + "! (" + year + " — " + MARKS.termLabel(term) + ")", "success");
+  },
+
+  termLabel(t) {
+    return t==="1" ? "1st Term" : t==="2" ? "2nd Term" : "3rd Term";
   },
 
   togglePwd() {
@@ -577,8 +623,9 @@ const MARKS = {
   logout() {
     if (hasUnsaved && !confirm("You have unsaved marks. Logout?")) return;
     window.AUTH.clearSession();
-    currentUser = null; GRADES = {}; marksData = {};
+    currentUser = null; GRADES = {}; marksData = {}; currentPeriod = null;
     document.getElementById("app-shell").classList.add("hidden");
+    document.getElementById("page-period").classList.add("hidden");
     document.getElementById("page-login").classList.remove("hidden");
     document.getElementById("login-pass").value = "";
     toast("Signed out", "info");
@@ -619,6 +666,10 @@ function showApp() {
   document.getElementById("sb-role").textContent = p.role === "principal" ? "Principal (Admin)" : "Teacher";
   document.getElementById("sb-avatar").textContent = (p.name || "U")[0].toUpperCase();
   if (!MARKS.darkMode) document.body.classList.add("light");
+  const periodEl = document.getElementById("topbar-period");
+  if (periodEl && currentPeriod) {
+    periodEl.innerHTML = `<i class="fas fa-calendar-alt"></i> ${currentPeriod.year} · ${MARKS.termLabel(currentPeriod.term)}`;
+  }
   MARKS.updateClock();
   setInterval(() => MARKS.updateClock(), 60000);
 }
@@ -627,6 +678,52 @@ function showApp() {
 //  INIT — load from Firestore
 // ════════════════════════════════════════════════════════════════
 let CLASS_MAP = {}; // raw Firestore "classes" docs, cid -> {name, subjects, ...}
+
+// ════════════════════════════════════════════════════════════════
+//  YEAR-BASED PROMOTION
+//  Each student has a home `classId` valid as of their `baseYear`
+//  (defaults to 2026 for existing records). For any later year we
+//  auto-promote them one grade per year — Grade 6 in 2026 becomes
+//  Grade 7 in 2027, etc. Past Grade 11 they graduate and no longer
+//  appear. A per-year override (`classOverride_<year>`) lets the
+//  principal move an individual student for one year only (e.g. a
+//  repeater) without disturbing the auto-promotion for everyone else.
+// ════════════════════════════════════════════════════════════════
+const BASE_YEAR = 2026;
+
+function parseGradeNum(name) {
+  const m = String(name || "").match(/grade\s*(\d+)/i);
+  return m ? parseInt(m[1], 10) : null;
+}
+function parseGradeSuffix(name) {
+  const m = String(name || "").match(/grade\s*\d+\s*(.*)$/i);
+  return m ? m[1].trim().toLowerCase() : "";
+}
+
+// Returns the classId a student effectively belongs to for the given
+// year, or null if they've graduated (promoted past Grade 11).
+function effectiveClassId(s, year) {
+  year = Number(year);
+  const override = s["classOverride_" + year];
+  if (override) return override;
+
+  const homeCid = s.classId;
+  const homeClass = CLASS_MAP[homeCid];
+  const baseGrade = homeClass ? parseGradeNum(homeClass.name) : null;
+  const baseYear = s.baseYear != null ? Number(s.baseYear) : BASE_YEAR;
+  if (baseGrade == null) return homeCid; // ungraded class (e.g. a special group) — never promoted
+
+  const targetGrade = baseGrade + (year - baseYear);
+  if (targetGrade > 11) return null;      // graduated — disappears from this and later years
+  if (targetGrade === baseGrade) return homeCid;
+  if (targetGrade < 1) return homeCid;    // guard against years before the student existed
+
+  const suffix = parseGradeSuffix(homeClass.name);
+  let match = Object.keys(CLASS_MAP).find(cid =>
+    parseGradeNum(CLASS_MAP[cid].name) === targetGrade && parseGradeSuffix(CLASS_MAP[cid].name) === suffix);
+  if (!match) match = Object.keys(CLASS_MAP).find(cid => parseGradeNum(CLASS_MAP[cid].name) === targetGrade);
+  return match || homeCid; // no class exists yet for that grade — keep them visible in their home class
+}
 
 async function initMarks() {
   document.getElementById("page-content").innerHTML = `
@@ -643,17 +740,24 @@ async function initMarks() {
     const classMap = {};
     classSnap.forEach(d => { classMap[d.id] = { ...d.data(), id: d.id }; });
     CLASS_MAP = classMap;
+    const year = currentPeriod?.year || String(BASE_YEAR);
     const studentsByClass = {};
     studentSnap.forEach(d => {
       const s = { id: d.id, ...d.data() };
-      if (!studentsByClass[s.classId]) studentsByClass[s.classId] = [];
-      studentsByClass[s.classId].push(s);
+      const cid = effectiveClassId(s, year);
+      if (cid == null) return; // graduated — not shown for this year
+      if (!studentsByClass[cid]) studentsByClass[cid] = [];
+      studentsByClass[cid].push(s);
     });
-    // Sort by registerOrder to match Class Register order in Attendance
+    // Sort by this year's registerOrder (falls back to the legacy shared
+    // field, then name) — order is edited per year and never bleeds across.
+    const roKey = "registerOrder_" + year;
     Object.keys(studentsByClass).forEach(cid => studentsByClass[cid].sort((a,b) => {
-      if (a.registerOrder != null && b.registerOrder != null) return a.registerOrder - b.registerOrder;
-      if (a.registerOrder != null) return -1;
-      if (b.registerOrder != null) return 1;
+      const aro = a[roKey] != null ? a[roKey] : a.registerOrder;
+      const bro = b[roKey] != null ? b[roKey] : b.registerOrder;
+      if (aro != null && bro != null) return aro - bro;
+      if (aro != null) return -1;
+      if (bro != null) return 1;
       return (a.name||"").localeCompare(b.name||"");
     }));
 
@@ -799,7 +903,11 @@ async function saveSubjectsForClass(cid, subs) {
 // ════════════════════════════════════════════════════════════════
 //  MARKS PERSISTENCE
 // ════════════════════════════════════════════════════════════════
-function mkey(cid, sid, sub) { return `marks_${cid}_${sid}_${sub}`; }
+function mkey(cid, sid, sub) {
+  const y = currentPeriod?.year || "2026";
+  const t = currentPeriod?.term || "1";
+  return `marks_${y}_t${t}_${cid}_${sid}_${sub}`;
+}
 
 function loadMarks(cid) {
   const g = GRADES[cid];
@@ -1160,7 +1268,7 @@ function openReorderStudents(cidPreset) {
           ${classIds.map(cid => `<option value="${cid}" ${cid===reorderCid?"selected":""}>${GRADES[cid].name}</option>`).join("")}
         </select>
       </div>` : ""}
-      <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:.6rem;"><i class="fas fa-info-circle"></i> Boys and Girls are ordered separately. Use the up/down arrows any time, or auto-align by index number.</p>
+      <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:.6rem;"><i class="fas fa-info-circle"></i> Boys and Girls are ordered separately. Use the up/down arrows any time, or auto-align by index number. Order changes apply only to <strong>${esc(currentPeriod?.year || BASE_YEAR)}</strong> — other years keep their own order.</p>
       <div class="flex gap-2" style="margin-bottom:.7rem;flex-wrap:wrap;">
         <button class="btn btn-outline btn-sm" onclick="autoAlignThisClass()"><i class="fas fa-sort-numeric-down"></i> Auto-Align by Index (This Class)</button>
         ${currentUser.role === "principal" ? `<button class="btn btn-outline btn-sm" onclick="autoAlignAllClasses()"><i class="fas fa-magic"></i> Auto-Align All Classes</button>` : ""}
@@ -1243,10 +1351,11 @@ async function autoAlignAllClasses() {
   try {
     const { db, doc, updateDoc } = window.FB;
     const writes = [];
+    const roField = "registerOrder_" + (currentPeriod?.year || BASE_YEAR);
     Object.keys(GRADES).forEach(cid => {
       const aligned = autoAlignList(GRADES[cid].students || []);
       GRADES[cid].students = aligned;
-      aligned.forEach((s, i) => writes.push(updateDoc(doc(db, "students", s.id), { registerOrder: i })));
+      aligned.forEach((s, i) => writes.push(updateDoc(doc(db, "students", s.id), { [roField]: i })));
     });
     await Promise.all(writes);
     if (reorderCid) reorderList = [...(GRADES[reorderCid].students || [])];
@@ -1297,11 +1406,14 @@ async function addStudentToClass() {
     const { db, collection, doc, setDoc, serverTimestamp } = window.FB;
     const newRef = doc(collection(db, "students"));
     const registerOrder = reorderList.length;
+    const year = Number(currentPeriod?.year || BASE_YEAR);
+    const roField = "registerOrder_" + year;
     await setDoc(newRef, {
-      name, indexNo, classId: reorderCid, registerOrder,
+      name, indexNo, classId: reorderCid, registerOrder, baseYear: year,
+      [roField]: registerOrder,
       createdAt: serverTimestamp ? serverTimestamp() : new Date()
     });
-    const newStudent = { id: newRef.id, name, indexNo, classId: reorderCid, registerOrder };
+    const newStudent = { id: newRef.id, name, indexNo, classId: reorderCid, registerOrder, baseYear: year, [roField]: registerOrder };
     reorderList.push(newStudent);
     GRADES[reorderCid].students = [...reorderList];
     idxInput.value = ""; nameInput.value = "";
@@ -1344,7 +1456,8 @@ async function saveReorder() {
   if (!canManageOrder(reorderCid)) return;
   try {
     const { db, doc, updateDoc } = window.FB;
-    await Promise.all(reorderList.map((s, i) => updateDoc(doc(db, "students", s.id), { registerOrder: i })));
+    const roField = "registerOrder_" + (currentPeriod?.year || BASE_YEAR);
+    await Promise.all(reorderList.map((s, i) => updateDoc(doc(db, "students", s.id), { [roField]: i })));
     GRADES[reorderCid].students = reorderList;
     toast("Student order saved", "success");
     document.getElementById("reorder-overlay")?.remove();
@@ -1535,7 +1648,8 @@ function buildSummaryHTML(cid) {
 function doPrint(cid) {
   const g = GRADES[cid];
   const now = new Date();
-  document.getElementById("print-class-line").textContent = g.name;
+  const periodStr = currentPeriod ? `${currentPeriod.year} — ${MARKS.termLabel(currentPeriod.term)}` : "";
+  document.getElementById("print-class-line").textContent = g.name + (periodStr ? " · " + periodStr : "");
   document.getElementById("print-date-line").textContent =
     "Printed: " + now.toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
   // Clone summary into print area
@@ -1619,6 +1733,7 @@ function exportMarksCSV(cid) {
 // ════════════════════════════════════════════════════════════════
 document.addEventListener("keydown", e => {
   if (e.key==="Enter" && !document.getElementById("page-login").classList.contains("hidden")) MARKS.login();
+  if (e.key==="Enter" && !document.getElementById("page-period").classList.contains("hidden")) MARKS.confirmPeriod();
   if ((e.ctrlKey||e.metaKey) && e.key==="s" && !document.getElementById("app-shell").classList.contains("hidden")) {
     e.preventDefault(); if (hasUnsaved) saveData();
   }
