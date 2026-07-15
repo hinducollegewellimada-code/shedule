@@ -392,8 +392,8 @@ body.light .sig-name-input,body.light .sig-date-input{color:#1e293b;border-color
 <div id="page-login" class="hidden">
   <div class="login-card glass">
     <div class="login-logo">
-      <img src="whc.png" alt="School Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>🏫</text></svg>'"/>
-      <h1>BD/Hindu College<br>Welimada</h1>
+      <img src="whc.png" alt="School Logo" onclick="secretClick()" style="cursor:pointer;" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>🏫</text></svg>'"/>
+      <h1 onclick="secretClick()" style="cursor:pointer;">BD/Hindu College<br>Welimada</h1>
       <p>Marks Schedule System</p>
     </div>
     <div class="input-group">
@@ -425,8 +425,8 @@ body.light .sig-name-input,body.light .sig-date-input{color:#1e293b;border-color
 <div id="page-period" class="hidden">
   <div class="login-card glass">
     <div class="login-logo">
-      <img src="whc.png" alt="School Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>🏫</text></svg>'"/>
-      <h1>BD/Hindu College<br>Welimada</h1>
+      <img src="whc.png" alt="School Logo" onclick="secretClick()" style="cursor:pointer;" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>🏫</text></svg>'"/>
+      <h1 onclick="secretClick()" style="cursor:pointer;">BD/Hindu College<br>Welimada</h1>
       <p>Select Year &amp; Term</p>
     </div>
     <div class="input-group">
@@ -460,8 +460,8 @@ body.light .sig-name-input,body.light .sig-date-input{color:#1e293b;border-color
   <!-- SIDEBAR -->
   <nav id="sidebar">
     <div class="sidebar-header">
-      <img src="whc.png" alt="Logo" class="sidebar-logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>🏫</text></svg>'"/>
-      <div class="sidebar-title">
+      <img src="whc.png" alt="Logo" class="sidebar-logo" onclick="secretClick()" style="cursor:pointer;" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>🏫</text></svg>'"/>
+      <div class="sidebar-title" onclick="secretClick()" style="cursor:pointer;">
         <h2>BD/Hindu College</h2>
         <p>Welimada</p>
       </div>
@@ -766,7 +766,7 @@ async function initMarks() {
       if (!canAccess(cid) && !(studentsByClass[cid]?.length)) return;
       GRADES[cid] = { name: classMap[cid].name || cid, id: cid, students: studentsByClass[cid] || [], subjects: loadSubjectsForClass(cid) };
     });
-    Object.keys(GRADES).forEach(cid => loadMarks(cid));
+    await Promise.all(Object.keys(GRADES).map(cid => loadMarks(cid)));
     buildSidebarNav();
     const accessible = Object.keys(GRADES).filter(cid => canAccess(cid));
     if (accessible.length > 0) showGrade(accessible[0]);
@@ -903,35 +903,81 @@ async function saveSubjectsForClass(cid, subs) {
 // ════════════════════════════════════════════════════════════════
 //  MARKS PERSISTENCE
 // ════════════════════════════════════════════════════════════════
+// Marks now live in Firestore (whc_marks collection — one doc per class
+// per year/term) so every device/teacher/principal sees the same Total,
+// Avg and Rank instead of only whoever typed them on that browser.
+const MARKS_COL = "whc_marks";
+function marksDocId(cid) {
+  const y = currentPeriod?.year || "2026";
+  const t = currentPeriod?.term || "1";
+  return `${cid}_${y}_t${t}`;
+}
+// Legacy per-cell localStorage key, kept only as a one-time migration
+// source for data entered before this fix.
 function mkey(cid, sid, sub) {
   const y = currentPeriod?.year || "2026";
   const t = currentPeriod?.term || "1";
   return `marks_${y}_t${t}_${cid}_${sid}_${sub}`;
 }
 
-function loadMarks(cid) {
+async function loadMarks(cid) {
   const g = GRADES[cid];
   if (!marksData[cid]) marksData[cid] = {};
-  g.students.forEach(s => {
-    if (!marksData[cid][s.id]) marksData[cid][s.id] = {};
-    g.subjects.forEach(sub => {
-      const v = localStorage.getItem(mkey(cid, s.id, sub));
-      marksData[cid][s.id][sub] = v !== null ? v : "";
+  g.students.forEach(s => { if (!marksData[cid][s.id]) marksData[cid][s.id] = {}; });
+
+  try {
+    const { db, doc, getDoc } = window.FB;
+    const snap = await getDoc(doc(db, MARKS_COL, marksDocId(cid)));
+    const remote = snap.exists() ? (snap.data().marks || {}) : {};
+    g.students.forEach(s => {
+      g.subjects.forEach(sub => {
+        const remoteVal = remote[s.id]?.[sub];
+        if (remoteVal !== undefined) {
+          marksData[cid][s.id][sub] = remoteVal;
+        } else {
+          // Fall back to any older localStorage-only entry so nobody's
+          // previously-typed marks appear to vanish.
+          const local = localStorage.getItem(mkey(cid, s.id, sub));
+          marksData[cid][s.id][sub] = local !== null ? local : "";
+        }
+      });
     });
-  });
+  } catch (e) {
+    console.error("loadMarks error:", e);
+    g.students.forEach(s => {
+      g.subjects.forEach(sub => {
+        const local = localStorage.getItem(mkey(cid, s.id, sub));
+        marksData[cid][s.id][sub] = local !== null ? local : "";
+      });
+    });
+    toast("Couldn't reach the marks database — showing locally saved marks only.", "warning");
+  }
+
+  if (cid === currentGrade) renderTable(cid);
 }
 
-function saveData() {
-  Object.keys(marksData).forEach(cid =>
-    Object.keys(marksData[cid]).forEach(sid =>
-      Object.keys(marksData[cid][sid]).forEach(sub =>
-        localStorage.setItem(mkey(cid,sid,sub), marksData[cid][sid][sub])
-      )
-    )
-  );
-  hasUnsaved = false;
-  document.getElementById("saveBtn").style.display = "none";
-  showStatus("✅ Saved!", "ok");
+async function saveData() {
+  const saveBtn = document.getElementById("saveBtn");
+  const originalHtml = saveBtn ? saveBtn.innerHTML : "";
+  if (saveBtn) saveBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Saving…`;
+  try {
+    const { db, doc, setDoc, serverTimestamp } = window.FB;
+    const cids = Object.keys(marksData);
+    await Promise.all(cids.map(cid =>
+      setDoc(doc(db, MARKS_COL, marksDocId(cid)), {
+        classId: cid,
+        marks: marksData[cid],
+        updatedAt: serverTimestamp()
+      }, { merge: true })
+    ));
+    hasUnsaved = false;
+    if (saveBtn) saveBtn.style.display = "none";
+    showStatus("✅ Saved!", "ok");
+  } catch (e) {
+    console.error("saveData error:", e);
+    if (saveBtn) saveBtn.innerHTML = originalHtml;
+    toast("Save failed — check your connection and try again.", "error");
+  }
 }
 
 function showStatus(msg, type) {
@@ -1161,7 +1207,7 @@ async function saveSubjects(cid) {
   if (!subs.length) { toast("Please enter at least one subject","warning"); return; }
   try {
     await saveSubjectsForClass(cid, subs);
-    loadMarks(cid);
+    await loadMarks(cid);
     document.querySelector(".modal-overlay")?.remove();
     renderTable(cid);
     showStatus("✅ Subjects updated!", "ok");
@@ -1676,6 +1722,34 @@ function doPrint(cid) {
     printArea.style.display = "";
     printArea.style.zoom = "1";
   };
+}
+
+// ════════════════════════════════════════════════════════════════
+//  SECRET — click the school name/logo 18 times (anywhere it
+//  appears — login screen, period screen, or sidebar) to reveal it.
+// ════════════════════════════════════════════════════════════════
+let secretClickCount = 0;
+function secretClick() {
+  secretClickCount++;
+  if (secretClickCount >= 18) {
+    secretClickCount = 0;
+    showSecretCredit();
+  }
+}
+function showSecretCredit() {
+  const overlay = document.createElement("div");
+  overlay.id = "secret-credit-overlay";
+  overlay.style.cssText = "position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(10,22,40,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);cursor:pointer;animation:slideIn .35s ease;";
+  overlay.innerHTML = `
+    <div style="text-align:center;padding:2rem;">
+      <div style="font-family:'Poppins',sans-serif;font-weight:900;font-size:clamp(1.8rem,6vw,4rem);line-height:1.3;background:linear-gradient(135deg,#fff,var(--sky),var(--cyan));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;text-shadow:0 0 60px rgba(56,189,248,.5);">
+        Project By :- R.Rizwinth
+      </div>
+      <p style="color:var(--text-muted);margin-top:1.5rem;font-size:.9rem;">Tap anywhere to close</p>
+    </div>`;
+  overlay.addEventListener("click", () => overlay.remove());
+  document.body.appendChild(overlay);
+  setTimeout(() => overlay.remove(), 6000);
 }
 
 // ════════════════════════════════════════════════════════════════
