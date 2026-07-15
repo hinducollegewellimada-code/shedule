@@ -1100,8 +1100,9 @@ function renderStudentRow(s, cid, rowNo, subjects) {
   const passed = cnt > 0 && parseFloat(avg) >= 35;
   const isMale = s.gender === "Male";
   const gColor = isMale ? "#38bdf8" : "#f472b6";
+  const rSafe = cid.replace(/[^a-z0-9]/gi,"_");
 
-  let html = `<tr>
+  let html = `<tr id="row_${rSafe}_${s.id}">
     <td style="color:var(--text-muted);font-size:.75rem;">${rowNo}</td>
     <td style="font-size:.78rem;color:var(--text-muted);">${s.indexNo||"—"}</td>
     <td>
@@ -1119,11 +1120,10 @@ function renderStudentRow(s, cid, rowNo, subjects) {
       html += `<td><span class="score-val ${sc}">${v||"—"}</span></td>`;
     }
   });
-  const rSafe = cid.replace(/[^a-z0-9]/gi,"_");
   const avgNum = parseFloat(avg);
   const avgColor = avgNum>=75?"#10b981":avgNum>=60?"#38bdf8":avgNum>=45?"#f59e0b":avgNum>35?"#f97316":"#ef4444";
-  html += `<td class="total-cell">${cnt>0?total:"—"}</td>
-    <td class="avg-cell">
+  html += `<td class="total-cell" id="tot_${rSafe}_${s.id}">${cnt>0?total:"—"}</td>
+    <td class="avg-cell" id="avg_${rSafe}_${s.id}">
       ${avg ? `<span style="color:${avgColor};font-weight:800;">${avg}</span>
         <div style="background:rgba(255,255,255,.08);border-radius:999px;height:4px;margin-top:3px;overflow:hidden;width:50px;">
           <div style="height:100%;width:${Math.min(avgNum,100)}%;background:${avgColor};border-radius:999px;"></div>
@@ -1151,7 +1151,27 @@ function commitCell(input, cid, sid, subject) {
   const td = input.parentElement;
   td.innerHTML = `<span class="score-val ${getScoreClass(val)}">${val||"—"}</span>`;
   td.onclick = () => editCell(td, cid, sid, subject);
+  updateRowTotals(cid, sid);
   computeRanks(cid);
+}
+function updateRowTotals(cid, sid) {
+  const g = GRADES[cid];
+  const marks = marksData[cid]?.[sid] || {};
+  let total = 0, cnt = 0;
+  g.subjects.forEach(sub => { const v = parseFloat(marks[sub]); if (!isNaN(v)){ total+=v; cnt++; } });
+  const avg = cnt > 0 ? (total/cnt).toFixed(1) : "";
+  const avgNum = parseFloat(avg);
+  const avgColor = avgNum>=75?"#10b981":avgNum>=60?"#38bdf8":avgNum>=45?"#f59e0b":avgNum>35?"#f97316":"#ef4444";
+  const rSafe = cid.replace(/[^a-z0-9]/gi,"_");
+  const totEl = document.getElementById(`tot_${rSafe}_${sid}`);
+  const avgEl = document.getElementById(`avg_${rSafe}_${sid}`);
+  if (totEl) totEl.textContent = cnt>0 ? total : "—";
+  if (avgEl) {
+    avgEl.innerHTML = avg ? `<span style="color:${avgColor};font-weight:800;">${avg}</span>
+      <div style="background:rgba(255,255,255,.08);border-radius:999px;height:4px;margin-top:3px;overflow:hidden;width:50px;">
+        <div style="height:100%;width:${Math.min(avgNum,100)}%;background:${avgColor};border-radius:999px;"></div>
+      </div>` : "—";
+  }
 }
 function cellKey(e, input, cid, sid, subject) {
   if (e.key==="Enter"||e.key==="Tab"){ e.preventDefault(); commitCell(input,cid,sid,subject); }
