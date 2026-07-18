@@ -485,15 +485,11 @@ body.light .sig-name-input,body.light .sig-date-input{color:#1e293b;border-color
       <div class="nav-item" id="manage-classes-btn" style="display:none;" onclick="openManageClasses()">
         <i class="fas fa-school" style="color:var(--sky);"></i><span>Manage Classes</span>
       </div>
-      <div class="nav-item" id="manage-order-btn" style="display:none;" onclick="openReorderStudents()">
-        <i class="fas fa-arrows-alt-v" style="color:var(--sky);"></i><span>Student Order</span>
+      <div class="nav-item" id="school-summary-btn" style="display:none;" onclick="showSchoolSummary()">
+        <i class="fas fa-globe" style="color:var(--sky);"></i><span>School Summary</span>
       </div>
     </div>
     <div class="sidebar-footer">
-      <a href="attandance.html" class="nav-item" style="text-decoration:none;color:inherit;border:1px solid rgba(6,182,212,.3);background:rgba(6,182,212,.08);margin-bottom:4px;">
-        <i class="fas fa-clipboard-check" style="color:#67e8f9;"></i>
-        <span style="color:#67e8f9;font-weight:800;">Attendance</span>
-      </a>
       <a href="https://hinducollegewellimada-code.github.io/register/" target="_blank" rel="noopener" class="nav-item" style="text-decoration:none;color:inherit;border:1px solid rgba(6,182,212,.3);background:rgba(6,182,212,.08);margin-bottom:4px;">
         <i class="fas fa-clipboard-check" style="color:#67e8f9;"></i>
         <span style="color:#67e8f9;font-weight:800;">Attendance</span>
@@ -888,7 +884,7 @@ function buildSidebarNav() {
   const isPrincipal = currentUser && currentUser.role === "principal";
   document.getElementById("manage-nav-title").style.display = isPrincipal ? "" : "none";
   document.getElementById("manage-classes-btn").style.display = isPrincipal ? "" : "none";
-  document.getElementById("manage-order-btn").style.display = isPrincipal ? "" : "none";
+  document.getElementById("school-summary-btn").style.display = isPrincipal ? "" : "none";
 }
 
 function setActiveNav(cid, isSummary) {
@@ -1568,6 +1564,100 @@ async function saveReorder() {
   } catch(e) {
     toast("Failed to save order: " + e.message, "error");
   }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  SCHOOL-WIDE SUMMARY (Principal only)
+// ════════════════════════════════════════════════════════════════
+function showSchoolSummary() {
+  if (!currentUser || currentUser.role !== "principal") return;
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+  const activeEl = document.getElementById("school-summary-btn");
+  if (activeEl) activeEl.classList.add("active");
+  document.getElementById("page-title").innerHTML = `<i class="fas fa-globe" style="color:var(--blue-accent);margin-right:.5rem;"></i>Whole School Summary`;
+  document.getElementById("page-content").innerHTML = buildSchoolSummaryHTML();
+}
+
+function buildSchoolSummaryHTML() {
+  const cids = Object.keys(GRADES).sort((a,b) => gradeNameCompare(GRADES[a].name, GRADES[b].name));
+
+  let totalStudents = 0, totalPassing = 0;
+  const failedStudents = [];
+  const perClassRows = cids.map(cid => {
+    const g = GRADES[cid];
+    let cnt = 0, passing = 0;
+    g.students.forEach(s => {
+      const m = marksData[cid]?.[s.id] || {};
+      let total = 0, subCnt = 0;
+      g.subjects.forEach(sub => { const v = parseFloat(m[sub]); if (!isNaN(v)) { total += v; subCnt++; } });
+      if (subCnt === 0) return;
+      cnt++;
+      const avg = total / subCnt;
+      if (avg > 35) { passing++; }
+      else { failedStudents.push({ class: g.name, name: s.name || "—", indexNo: s.indexNo || "—", avg: avg.toFixed(1) }); }
+    });
+    totalStudents += cnt; totalPassing += passing;
+    const classAvgVals = g.students.map(s => {
+      const m = marksData[cid]?.[s.id] || {};
+      let total = 0, subCnt = 0;
+      g.subjects.forEach(sub => { const v = parseFloat(m[sub]); if (!isNaN(v)) { total += v; subCnt++; } });
+      return subCnt > 0 ? total / subCnt : null;
+    }).filter(v => v !== null);
+    const classAvg = classAvgVals.length ? (classAvgVals.reduce((a,b)=>a+b,0)/classAvgVals.length).toFixed(1) : "—";
+    return { name: g.name, cid, cnt, passing, failed: cnt - passing, classAvg };
+  });
+
+  const totalFailed = totalStudents - totalPassing;
+
+  let html = `
+    <div class="section-header">
+      <h2 class="summary-print-title"><i class="fas fa-globe" style="color:var(--blue-accent);margin-right:.5rem;"></i>Whole School Summary</h2>
+    </div>
+
+    <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:1.25rem;">
+      <div class="stat-card glass stat-blue"><div class="stat-icon"><i class="fas fa-school"></i></div><div class="stat-value">${cids.length}</div><div class="stat-label">Classes</div></div>
+      <div class="stat-card glass stat-blue"><div class="stat-icon"><i class="fas fa-user-graduate"></i></div><div class="stat-value">${totalStudents}</div><div class="stat-label">Total Students</div></div>
+      <div class="stat-card glass stat-green"><div class="stat-icon"><i class="fas fa-check-circle"></i></div><div class="stat-value">${totalPassing}</div><div class="stat-label">Passed</div></div>
+      <div class="stat-card glass" style="border:1px solid rgba(239,68,68,.25);background:rgba(239,68,68,.08);"><div class="stat-icon" style="background:rgba(239,68,68,.2);color:var(--danger);"><i class="fas fa-times-circle"></i></div><div class="stat-value" style="color:var(--danger);">${totalFailed}</div><div class="stat-label">Failed</div></div>
+    </div>
+
+    <div class="glass card" style="padding:0;margin-bottom:1.25rem;">
+      <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--glass-border);">
+        <h3 style="font-size:.95rem;font-weight:800;"><i class="fas fa-table" style="color:var(--blue-accent);margin-right:.5rem;"></i>Per-Class Breakdown</h3>
+      </div>
+      <div class="sum-table-wrap"><table class="sum-table"><thead><tr>
+        <th>Class</th><th>Students</th><th>Passed</th><th>Failed</th><th>Class Avg</th><th></th>
+      </tr></thead><tbody>
+      ${perClassRows.map(r => `<tr>
+        <td><strong style="font-size:.85rem;">${r.name}</strong></td>
+        <td>${r.cnt}</td>
+        <td style="color:var(--success);font-weight:700;">${r.passing}</td>
+        <td style="color:var(--danger);font-weight:700;">${r.failed}</td>
+        <td class="savg">${r.classAvg}${r.classAvg!=="—"?"%":""}</td>
+        <td><button class="btn btn-outline btn-sm" onclick="showSummary('${esc(r.cid)}')"><i class="fas fa-arrow-right"></i> View</button></td>
+      </tr>`).join("")}
+      </tbody></table></div>
+    </div>
+
+    <div class="glass card" style="padding:0;">
+      <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--glass-border);">
+        <h3 style="font-size:.95rem;font-weight:800;color:var(--danger);"><i class="fas fa-exclamation-triangle" style="margin-right:.5rem;"></i>Failed Students (School-Wide)</h3>
+        <span style="font-size:.78rem;color:var(--text-muted);">${failedStudents.length} student(s) below pass mark — visible to Principal only</span>
+      </div>
+      <div class="sum-table-wrap"><table class="sum-table"><thead><tr>
+        <th>#</th><th>Class</th><th>Index</th><th>Name</th><th>Avg</th>
+      </tr></thead><tbody>
+      ${failedStudents.length ? failedStudents.map((s,i) => `<tr>
+        <td style="color:var(--text-muted);font-size:.78rem;">${i+1}</td>
+        <td>${s.class}</td>
+        <td style="font-size:.78rem;color:var(--text-muted);">${s.indexNo}</td>
+        <td><strong style="font-size:.85rem;">${s.name}</strong></td>
+        <td class="savg" style="color:var(--danger);">${s.avg}</td>
+      </tr>`).join("") : `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1rem;">No failing students 🎉</td></tr>`}
+      </tbody></table></div>
+    </div>`;
+
+  return html;
 }
 
 // ════════════════════════════════════════════════════════════════
