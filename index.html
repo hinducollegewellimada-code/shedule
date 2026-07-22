@@ -290,9 +290,9 @@ td.editable input{ width:58px; padding:4px 6px; border:2px solid var(--blue-acce
 .sum-table-wrap{overflow-x:auto}
 .sum-table{width:100%;border-collapse:collapse;font-size:.8rem}
 .sum-table th{ background:rgba(37,99,235,.2); color:var(--text-muted); padding:.65rem .75rem; text-align:center; font-weight:800; white-space:nowrap; font-size:.7rem; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid var(--glass-border); }
-.sum-table th:nth-child(1),.sum-table th:nth-child(2),.sum-table th:nth-child(3),.sum-table th:nth-child(4){text-align:left}
+.sum-table th:nth-child(1),.sum-table th:nth-child(2),.sum-table th:nth-child(3){text-align:left}
 .sum-table td{padding:.6rem .75rem;border-bottom:1px solid var(--glass-border);text-align:center;vertical-align:middle}
-.sum-table td:nth-child(1),.sum-table td:nth-child(2),.sum-table td:nth-child(3),.sum-table td:nth-child(4){text-align:left}
+.sum-table td:nth-child(1),.sum-table td:nth-child(2),.sum-table td:nth-child(3){text-align:left}
 .sum-table tr:last-child td{border-bottom:none}
 .sum-table .sep-sum-row td{height:6px;background:rgba(37,99,235,.06);padding:0;border-color:var(--glass-border)}
 .sum-table .stotal{font-weight:800}
@@ -341,8 +341,8 @@ td.editable input{ width:58px; padding:4px 6px; border:2px solid var(--blue-acce
 #print-area .sum-table{font-size:10.5px!important}
 #print-area .sum-table th{background:#1a3a8f!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:.25rem .3rem!important;font-size:8.5px!important}
 #print-area .sum-table td{padding:.2rem .3rem!important;border-bottom:1px solid #94a3b8!important}
-#print-area .sum-table th:nth-child(4),#print-area .sum-table td:nth-child(4){padding-right:.15rem!important}
-#print-area .sum-table th:nth-child(5),#print-area .sum-table td:nth-child(5){padding-left:.15rem!important}
+#print-area .sum-table th:nth-child(3),#print-area .sum-table td:nth-child(3){padding-right:.05rem!important}
+#print-area .sum-table th:nth-child(4),#print-area .sum-table td:nth-child(4){padding-left:.05rem!important}
 #print-area .score-val{padding:1px 5px!important;min-width:0!important}
 #print-area .sum-table thead{display:table-header-group}
 #print-area .sum-table tbody tr{page-break-inside:avoid;break-inside:avoid}
@@ -1834,9 +1834,9 @@ function buildSummaryHTML(cid) {
         <span style="font-size:.78rem;color:var(--text-muted);">${cnt} students · ${g.subjects.length} subjects</span>
       </div>
       <div class="sum-table-wrap"><table class="sum-table"><thead><tr>
-        <th>Rank</th><th>#</th><th>Index</th><th>Name</th>`;
+        <th>#</th><th>Index</th><th>Name</th>`;
   g.subjects.forEach(s => html += `<th style="font-size:.65rem;">${s}</th>`);
-  html += `<th>Total</th><th>Avg</th></tr></thead><tbody>`;
+  html += `<th>Total</th><th>Avg</th><th>Rank</th></tr></thead><tbody>`;
 
   let no = 1;
   groups.forEach(grp => {
@@ -1849,7 +1849,6 @@ function buildSummaryHTML(cid) {
       const rcls = rn===1?"r1":rn===2?"r2":rn===3?"r3":"";
       const medal = rn===1?"🥇":rn===2?"🥈":rn===3?"🥉":"";
       html += `<tr>
-        <td class="srank ${rcls}">${medal} ${rn}</td>
         <td style="color:var(--text-muted);font-size:.78rem;">${no++}</td>
         <td style="font-size:.78rem;color:var(--text-muted);">${s.indexNo||"—"}</td>
         <td><strong style="font-size:.85rem;">${s.name||"—"}</strong></td>`;
@@ -1858,7 +1857,8 @@ function buildSummaryHTML(cid) {
         html += `<td><span class="score-val ${sc}" style="font-size:.78rem;">${v||"—"}</span></td>`;
       });
       html += `<td class="stotal">${s.total>=0?s.total:"—"}</td>
-        <td class="savg">${s.avg||"—"}</td></tr>`;
+        <td class="savg">${s.avg||"—"}</td>
+        <td class="srank ${rcls}">${medal} ${rn}</td></tr>`;
     });
   });
   html += `</tbody></table></div>`;
