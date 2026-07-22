@@ -229,10 +229,12 @@ body::before{ content:''; position:fixed; inset:0; z-index:-1; background: radia
 
 /* TABLE */
 .table-wrapper{overflow-x:auto;border-radius:var(--card-radius)}
-table{width:100%;border-collapse:collapse;font-size:.87rem}
+table{width:auto;border-collapse:collapse;font-size:.87rem}
 thead th{ background:rgba(37,99,235,.15); color:var(--text-muted); font-size:.72rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em; padding:.85rem 1rem; text-align:left; white-space:nowrap; }
 tbody td{padding:.7rem 1rem;border-bottom:1px solid var(--glass-border);vertical-align:middle;text-align:center}
 tbody td:nth-child(1),tbody td:nth-child(2),tbody td:nth-child(3){text-align:left}
+thead th:nth-child(3),tbody td:nth-child(3){padding-right:.3rem}
+thead th:nth-child(4),tbody td:nth-child(4){padding-left:.3rem}
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover{background:rgba(255,255,255,.03)}
 .td-actions{display:flex;gap:.4rem}
@@ -302,6 +304,12 @@ td.editable input{ width:58px; padding:4px 6px; border:2px solid var(--blue-acce
 
 /* Signature */
 .sig-section{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:2rem; padding:1.75rem 1.5rem 1.5rem; border-top:1px solid var(--glass-border); }
+#print-content.sig-align-left .sig-section{ display:flex; justify-content:flex-start; gap:3rem; }
+#print-content.sig-align-center .sig-section{ display:flex; justify-content:center; gap:3rem; }
+#print-content.sig-align-right .sig-section{ display:flex; justify-content:flex-end; gap:3rem; }
+#print-content.sig-align-left .sig-section > div,
+#print-content.sig-align-center .sig-section > div,
+#print-content.sig-align-right .sig-section > div{ flex:0 0 220px; }
 .sig-label{font-size:.72rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.5rem}
 .sig-space{border-bottom:1.5px solid rgba(255,255,255,.25);height:50px;width:100%;margin:.5rem 0 .2rem}
 .sig-caption{font-size:.7rem;color:var(--text-muted);text-align:center;font-weight:600}
@@ -395,7 +403,7 @@ td.editable input{ width:58px; padding:4px 6px; border:2px solid var(--blue-acce
   body::before{display:none!important}
   #app-shell,#sidebar,#topbar,.save-bar,.no-print{display:none!important}
   #print-area{display:block!important}
-  #print-sheet{width:100%!important;margin:0!important}
+  #print-sheet{margin:0!important}
 }
 
 /* LIGHT MODE */
@@ -1786,7 +1794,7 @@ function buildSummaryHTML(cid) {
       <h2 class="summary-print-title"><i class="fas fa-chart-bar" style="color:var(--warning);margin-right:.5rem;"></i>${g.name} — Summary</h2>
       <div class="flex gap-3 items-center no-print" style="flex-wrap:wrap;">
         <button class="btn btn-outline btn-sm" onclick="exportMarksCSV('${esc(cid)}')"><i class="fas fa-download"></i> CSV</button>
-        <button class="btn btn-success btn-sm" onclick="doPrint('${esc(cid)}')"><i class="fas fa-print"></i> Print</button>
+        <button class="btn btn-success btn-sm" onclick="openPrintSettings('${esc(cid)}')"><i class="fas fa-print"></i> Print</button>
         <button class="btn btn-outline btn-sm" onclick="showGrade('${esc(cid)}')"><i class="fas fa-arrow-left"></i> Back to Marks</button>
       </div>
     </div>
@@ -1891,7 +1899,119 @@ function buildSummaryHTML(cid) {
   return html;
 }
 
-function doPrint(cid) {
+// ════════════════════════════════════════════════════════════════
+//  PRINT SETTINGS — user-customizable margin / border / font size /
+//  signature placement, remembered per-browser via localStorage.
+// ════════════════════════════════════════════════════════════════
+const PRINT_SETTINGS_KEY = "whc_print_settings";
+function getPrintSettings() {
+  const defaults = {
+    marginV: 8,           // top/bottom page margin, mm
+    marginH: 9,            // left/right page margin, mm
+    borderOn: false,        // show a frame border around the printed sheet
+    borderWidth: 1,          // px
+    borderColor: "#1a3a8f",
+    fontScale: 100,           // overall print size, %
+    sigAlign: "justify",       // justify | left | center | right
+    sigSpacing: 0               // extra space above signature block, px
+  };
+  try {
+    const saved = JSON.parse(localStorage.getItem(PRINT_SETTINGS_KEY) || "{}");
+    return { ...defaults, ...saved };
+  } catch(e) { return defaults; }
+}
+function savePrintSettings(s) {
+  try { localStorage.setItem(PRINT_SETTINGS_KEY, JSON.stringify(s)); } catch(e) {}
+}
+
+function openPrintSettings(cid) {
+  const s = getPrintSettings();
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="glass modal" style="max-width:480px;">
+      <div class="modal-header">
+        <h3><i class="fas fa-print" style="color:var(--cyan);margin-right:.5rem;"></i>Print Settings</h3>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()"><i class="fas fa-times"></i></button>
+      </div>
+
+      <div class="input-group">
+        <label>Page Margin — Top/Bottom (mm)</label>
+        <input type="number" id="ps-marginV" class="form-control" min="3" max="25" step="1" value="${s.marginV}"/>
+      </div>
+      <div class="input-group">
+        <label>Page Margin — Left/Right (mm)</label>
+        <input type="number" id="ps-marginH" class="form-control" min="3" max="25" step="1" value="${s.marginH}"/>
+      </div>
+
+      <div class="input-group">
+        <label style="display:flex;align-items:center;gap:.5rem;text-transform:none;font-size:.85rem;">
+          <input type="checkbox" id="ps-borderOn" ${s.borderOn?"checked":""} style="width:auto;"/> Show border around the sheet
+        </label>
+      </div>
+      <div class="flex gap-3" style="align-items:flex-end;">
+        <div class="input-group" style="flex:1;">
+          <label>Border Width (px)</label>
+          <input type="number" id="ps-borderWidth" class="form-control" min="1" max="8" step="1" value="${s.borderWidth}"/>
+        </div>
+        <div class="input-group" style="flex:1;">
+          <label>Border Colour</label>
+          <input type="color" id="ps-borderColor" class="form-control" style="padding:.25rem;height:42px;" value="${s.borderColor}"/>
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label>Overall Font / Content Size (%)</label>
+        <input type="range" id="ps-fontScale" min="70" max="140" step="5" value="${s.fontScale}" style="width:100%;"/>
+        <span id="ps-fontScale-val" style="font-size:.8rem;color:var(--text-muted);">${s.fontScale}%</span>
+      </div>
+
+      <div class="input-group">
+        <label>Signature Placement</label>
+        <select id="ps-sigAlign" class="form-control">
+          <option value="justify" ${s.sigAlign==="justify"?"selected":""}>Spread Evenly (default)</option>
+          <option value="left" ${s.sigAlign==="left"?"selected":""}>Left Aligned</option>
+          <option value="center" ${s.sigAlign==="center"?"selected":""}>Centered</option>
+          <option value="right" ${s.sigAlign==="right"?"selected":""}>Right Aligned</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label>Extra Space Above Signatures (px)</label>
+        <input type="number" id="ps-sigSpacing" class="form-control" min="0" max="60" step="2" value="${s.sigSpacing}"/>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+        <button class="btn btn-primary" onclick="applyPrintSettingsAndPrint('${esc(cid)}')"><i class="fas fa-print"></i> Apply &amp; Print</button>
+      </div>
+    </div>`;
+  overlay.addEventListener("click", e => { if (e.target===overlay) overlay.remove(); });
+  document.getElementById("modal-container").appendChild(overlay);
+  const fsRange = overlay.querySelector("#ps-fontScale");
+  fsRange.addEventListener("input", () => {
+    overlay.querySelector("#ps-fontScale-val").textContent = fsRange.value + "%";
+  });
+}
+
+function applyPrintSettingsAndPrint(cid) {
+  const overlay = document.querySelector(".modal-overlay");
+  const s = {
+    marginV: Math.max(3, Math.min(25, parseFloat(document.getElementById("ps-marginV").value) || 8)),
+    marginH: Math.max(3, Math.min(25, parseFloat(document.getElementById("ps-marginH").value) || 9)),
+    borderOn: document.getElementById("ps-borderOn").checked,
+    borderWidth: Math.max(1, Math.min(8, parseFloat(document.getElementById("ps-borderWidth").value) || 1)),
+    borderColor: document.getElementById("ps-borderColor").value || "#1a3a8f",
+    fontScale: Math.max(70, Math.min(140, parseFloat(document.getElementById("ps-fontScale").value) || 100)),
+    sigAlign: document.getElementById("ps-sigAlign").value,
+    sigSpacing: Math.max(0, Math.min(60, parseFloat(document.getElementById("ps-sigSpacing").value) || 0))
+  };
+  savePrintSettings(s);
+  if (overlay) overlay.remove();
+  doPrint(cid, s);
+}
+
+function doPrint(cid, printOpts) {
+  const s = printOpts || getPrintSettings();
   const g = GRADES[cid];
   const now = new Date();
   const periodStr = currentPeriod ? `${currentPeriod.year} — ${MARKS.termLabel(currentPeriod.term)}` : "";
@@ -1913,18 +2033,45 @@ function doPrint(cid) {
   printContent.className = ""; // reset any compaction classes from a previous print
   printContent.innerHTML = tmp.innerHTML;
 
-  // Force the whole sheet to fit exactly on ONE A4-landscape page.
+  // Apply user-chosen signature placement + extra spacing.
+  printContent.classList.add("sig-align-" + (s.sigAlign || "justify"));
+  const sigSection = printContent.querySelector(".sig-section");
+  if (sigSection && s.sigSpacing) {
+    sigSection.style.setProperty("margin-top", `calc(1.1rem + ${s.sigSpacing}px)`, "important");
+  }
+
+  // Apply user-chosen page margins: inject/refresh a dynamic @page rule so it
+  // overrides the default one (it's added later in the document, so it wins).
+  const marginV = Math.max(3, Math.min(25, s.marginV || 8));
+  const marginH = Math.max(3, Math.min(25, s.marginH || 9));
+  let pageStyle = document.getElementById("dynamic-print-page-style");
+  if (!pageStyle) {
+    pageStyle = document.createElement("style");
+    pageStyle.id = "dynamic-print-page-style";
+    document.head.appendChild(pageStyle);
+  }
+  pageStyle.textContent = `@media print { @page { size:A4 landscape; margin:${marginV}mm ${marginH}mm; } }`;
+
+  // Force the whole sheet to fit exactly on ONE A4-landscape page, sized to
+  // match the usable area for the CURRENT margins (297x210mm page).
   const printArea  = document.getElementById("print-area");
   const printSheet = document.getElementById("print-sheet");
   printArea.style.display = "block";
 
-  // Usable px height for a single A4-landscape page (297x210mm page,
-  // 8mm top/bottom margins) at 96 CSS px/in: (210 - 16)mm -> ~733px.
-  // #print-sheet's width is fixed to the matching usable width (1055px) in
-  // CSS at all times, so this on-screen measurement matches print exactly —
-  // no transform/zoom hacks needed, which is what previously caused the
-  // content to render clipped into a corner of the page.
-  const budget = 733;
+  const mmToPx = mm => mm / 25.4 * 96;
+  const sheetWidthPx  = mmToPx(297 - marginH * 2);
+  const budget        = mmToPx(210 - marginV * 2);
+  printSheet.style.width = sheetWidthPx + "px";
+
+  // User-chosen border around the printed sheet.
+  printSheet.style.border = s.borderOn
+    ? `${Math.max(1, s.borderWidth || 1)}px solid ${s.borderColor || "#1a3a8f"}`
+    : "none";
+
+  // User-chosen overall font/content size — zoom scales layout + text together
+  // so the fit-to-page measurement below stays accurate (Chrome/Edge support
+  // `zoom` fully; it's the simplest way to scale everything uniformly).
+  printSheet.style.zoom = Math.max(70, Math.min(140, s.fontScale || 100)) / 100;
 
   // Step 0 → 1 → 2 → 3: shrink the table/signatures in stages, so the
   // header and signature blocks stay full-size/legible for as long as possible.
@@ -1952,6 +2099,9 @@ function doPrint(cid) {
   window.onafterprint = () => {
     printArea.style.display = "";
     printContent.className = "";
+    printSheet.style.width = "";
+    printSheet.style.border = "";
+    printSheet.style.zoom = "";
   };
 }
 
