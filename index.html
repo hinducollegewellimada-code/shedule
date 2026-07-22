@@ -1913,7 +1913,8 @@ function getPrintSettings() {
     borderColor: "#1a3a8f",
     fontScale: 100,           // overall print size, %
     sigAlign: "justify",       // justify | left | center | right
-    sigSpacing: 0               // extra space above signature block, px
+    sigSpacing: 0,               // extra space above signature block, px
+    nameSubjectGap: 3            // space between Name column and first subject column, px
   };
   try {
     const saved = JSON.parse(localStorage.getItem(PRINT_SETTINGS_KEY) || "{}");
@@ -1980,6 +1981,11 @@ function openPrintSettings(cid) {
         <input type="number" id="ps-sigSpacing" class="form-control" min="0" max="60" step="2" value="${s.sigSpacing}"/>
       </div>
 
+      <div class="input-group">
+        <label>Space Between Name &amp; Subject Columns (px)</label>
+        <input type="number" id="ps-nameSubjectGap" class="form-control" min="0" max="20" step="1" value="${s.nameSubjectGap}"/>
+      </div>
+
       <div class="modal-footer">
         <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
         <button class="btn btn-primary" onclick="applyPrintSettingsAndPrint('${esc(cid)}')"><i class="fas fa-print"></i> Apply &amp; Print</button>
@@ -2003,7 +2009,8 @@ function applyPrintSettingsAndPrint(cid) {
     borderColor: document.getElementById("ps-borderColor").value || "#1a3a8f",
     fontScale: Math.max(70, Math.min(140, parseFloat(document.getElementById("ps-fontScale").value) || 100)),
     sigAlign: document.getElementById("ps-sigAlign").value,
-    sigSpacing: Math.max(0, Math.min(60, parseFloat(document.getElementById("ps-sigSpacing").value) || 0))
+    sigSpacing: Math.max(0, Math.min(60, parseFloat(document.getElementById("ps-sigSpacing").value) || 0)),
+    nameSubjectGap: Math.max(0, Math.min(20, parseFloat(document.getElementById("ps-nameSubjectGap").value) ?? 3))
   };
   savePrintSettings(s);
   if (overlay) overlay.remove();
@@ -2033,6 +2040,17 @@ function doPrint(cid, printOpts) {
   printContent.className = ""; // reset any compaction classes from a previous print
   printContent.innerHTML = tmp.innerHTML;
 
+  // The Print/Summary buttons live on the SAME on-screen summary panel where the
+  // user types the signature names/dates — but buildSummaryHTML() above just
+  // generated a brand-new (blank) copy for the print area. Carry over whatever
+  // the user actually typed on screen, in order, so it shows up on paper.
+  const liveNameInputs = document.querySelectorAll("#page-content .sig-name-input");
+  const liveDateInputs = document.querySelectorAll("#page-content .sig-date-input");
+  const printNameInputs = printContent.querySelectorAll(".sig-name-input");
+  const printDateInputs = printContent.querySelectorAll(".sig-date-input");
+  printNameInputs.forEach((el, i) => { if (liveNameInputs[i]) el.value = liveNameInputs[i].value; });
+  printDateInputs.forEach((el, i) => { if (liveDateInputs[i]) el.value = liveDateInputs[i].value; });
+
   // Apply user-chosen signature placement + extra spacing.
   printContent.classList.add("sig-align-" + (s.sigAlign || "justify"));
   const sigSection = printContent.querySelector(".sig-section");
@@ -2050,7 +2068,9 @@ function doPrint(cid, printOpts) {
     pageStyle.id = "dynamic-print-page-style";
     document.head.appendChild(pageStyle);
   }
-  pageStyle.textContent = `@media print { @page { size:A4 landscape; margin:${marginV}mm ${marginH}mm; } }`;
+  pageStyle.textContent = `@media print { @page { size:A4 landscape; margin:${marginV}mm ${marginH}mm; } }
+    #print-area .sum-table th:nth-child(3),#print-area .sum-table td:nth-child(3){padding-right:${s.nameSubjectGap ?? 3}px!important}
+    #print-area .sum-table th:nth-child(4),#print-area .sum-table td:nth-child(4){padding-left:${s.nameSubjectGap ?? 3}px!important}`;
 
   // Force the whole sheet to fit exactly on ONE A4-landscape page, sized to
   // match the usable area for the CURRENT margins (297x210mm page).
