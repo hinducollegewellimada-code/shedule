@@ -337,17 +337,20 @@ td.editable input{ width:58px; padding:4px 6px; border:2px solid var(--blue-acce
 #print-area > #print-sheet > div[style*="border-bottom:3px double"]{padding:.4rem 0 .3rem!important;margin-bottom:.5rem!important;}
 #print-area > #print-sheet > div[style*="border-bottom:3px double"] img{width:38px!important;height:38px!important;}
 #print-area > #print-sheet > div[style*="border-bottom:3px double"] h1{font-size:14px!important}
-#print-area .glass.card{padding:.5rem .6rem!important;margin-bottom:.5rem!important;}
-#print-area .sum-table{font-size:9.5px!important}
-#print-area .sum-table th{background:#1a3a8f!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:.25rem .35rem!important;font-size:7.5px!important}
-#print-area .sum-table td{padding:.18rem .35rem!important}
+#print-area .glass.card{padding:.5rem .6rem!important;margin-bottom:.7rem!important;}
+#print-area .sum-table{font-size:10.5px!important}
+#print-area .sum-table th{background:#1a3a8f!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:.25rem .3rem!important;font-size:8.5px!important}
+#print-area .sum-table td{padding:.2rem .3rem!important;border-bottom:1px solid #94a3b8!important}
+#print-area .sum-table th:nth-child(4),#print-area .sum-table td:nth-child(4){padding-right:.15rem!important}
+#print-area .sum-table th:nth-child(5),#print-area .sum-table td:nth-child(5){padding-left:.15rem!important}
 #print-area .score-val{padding:1px 5px!important;min-width:0!important}
 #print-area .sum-table thead{display:table-header-group}
 #print-area .sum-table tbody tr{page-break-inside:avoid;break-inside:avoid}
+#print-area .sum-table tbody tr:last-child td{border-bottom:1px solid #94a3b8!important}
 #print-area .sig-space{border-color:#333!important;height:34px!important}
-#print-area .sig-section{page-break-inside:avoid;break-inside:avoid;padding:.75rem .5rem .5rem!important;gap:1.25rem!important}
-#print-area .sig-label,#print-area .sig-caption,#print-area .sig-date-label{font-size:9px!important}
-#print-area .sig-name-input,#print-area .sig-date-input{font-size:10px!important}
+#print-area .sig-section{page-break-inside:avoid;break-inside:avoid;padding:.9rem .5rem .5rem!important;gap:1.25rem!important;margin-top:1.1rem!important;border-top:1px solid #cbd5e1!important}
+#print-area .sig-label,#print-area .sig-caption,#print-area .sig-date-label{font-size:10.5px!important}
+#print-area .sig-name-input,#print-area .sig-date-input{font-size:11.5px!important}
 #print-area .score-a{color:#15803d!important;background:#dcfce7!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 #print-area .score-b{color:#1d4ed8!important;background:#dbeafe!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 #print-area .score-c{color:#d97706!important;background:#fef3c7!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -356,30 +359,34 @@ td.editable input{ width:58px; padding:4px 6px; border:2px solid var(--blue-acce
 #print-area .sep-sum-row td{background:#dde3ef!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 
 /* Step 1: compact table/signatures — used when content slightly overflows one page */
-#print-content.print-compact .sum-table{font-size:8.5px!important}
-#print-content.print-compact .sum-table th{font-size:6.8px!important;padding:.18rem .3rem!important}
-#print-content.print-compact .sum-table td{padding:.1rem .3rem!important}
-#print-content.print-compact .glass.card{padding:.4rem .5rem!important;margin-bottom:.4rem!important}
-#print-content.print-compact .sig-section{padding:.5rem .5rem .35rem!important;gap:1rem!important}
+#print-content.print-compact .sum-table{font-size:9.3px!important}
+#print-content.print-compact .sum-table th{font-size:7.6px!important;padding:.18rem .25rem!important}
+#print-content.print-compact .sum-table td{padding:.12rem .25rem!important;border-bottom:1px solid #94a3b8!important}
+#print-content.print-compact .glass.card{padding:.4rem .5rem!important;margin-bottom:.5rem!important}
+#print-content.print-compact .sig-section{padding:.6rem .5rem .35rem!important;gap:1rem!important;margin-top:.8rem!important;border-top:1px solid #cbd5e1!important}
 #print-content.print-compact .sig-space{height:26px!important}
+#print-content.print-compact .sig-label,#print-content.print-compact .sig-caption,#print-content.print-compact .sig-date-label{font-size:9.5px!important}
+#print-content.print-compact .sig-name-input,#print-content.print-compact .sig-date-input{font-size:10.3px!important}
 
 /* Step 2: extra-compact — used when step 1 still doesn't fit */
-#print-content.print-compact-2 .sum-table{font-size:7.5px!important}
-#print-content.print-compact-2 .sum-table th{font-size:6.2px!important;padding:.12rem .25rem!important}
-#print-content.print-compact-2 .sum-table td{padding:.06rem .25rem!important}
-#print-content.print-compact-2 .glass.card{padding:.3rem .4rem!important;margin-bottom:.3rem!important}
-#print-content.print-compact-2 .sig-section{padding:.35rem .4rem .25rem!important;gap:.85rem!important}
+#print-content.print-compact-2 .sum-table{font-size:8.3px!important}
+#print-content.print-compact-2 .sum-table th{font-size:7px!important;padding:.12rem .2rem!important}
+#print-content.print-compact-2 .sum-table td{padding:.08rem .2rem!important;border-bottom:1px solid #94a3b8!important}
+#print-content.print-compact-2 .glass.card{padding:.3rem .4rem!important;margin-bottom:.4rem!important}
+#print-content.print-compact-2 .sig-section{padding:.45rem .4rem .25rem!important;gap:.85rem!important;margin-top:.6rem!important;border-top:1px solid #cbd5e1!important}
 #print-content.print-compact-2 .sig-space{height:20px!important}
-#print-content.print-compact-2 .sig-label,#print-content.print-compact-2 .sig-caption,#print-content.print-compact-2 .sig-date-label{font-size:8px!important}
+#print-content.print-compact-2 .sig-label,#print-content.print-compact-2 .sig-caption,#print-content.print-compact-2 .sig-date-label{font-size:8.8px!important}
+#print-content.print-compact-2 .sig-name-input,#print-content.print-compact-2 .sig-date-input{font-size:9.5px!important}
 
 /* Step 3: maximum compaction — last resort before allowing a natural 2nd page */
-#print-content.print-compact-3 .sum-table{font-size:6.8px!important}
-#print-content.print-compact-3 .sum-table th{font-size:5.6px!important;padding:.08rem .2rem!important}
-#print-content.print-compact-3 .sum-table td{padding:.03rem .2rem!important}
-#print-content.print-compact-3 .glass.card{padding:.2rem .3rem!important;margin-bottom:.2rem!important}
-#print-content.print-compact-3 .sig-section{padding:.25rem .3rem .18rem!important;gap:.6rem!important}
+#print-content.print-compact-3 .sum-table{font-size:7.5px!important}
+#print-content.print-compact-3 .sum-table th{font-size:6.3px!important;padding:.08rem .18rem!important}
+#print-content.print-compact-3 .sum-table td{padding:.05rem .18rem!important;border-bottom:1px solid #94a3b8!important}
+#print-content.print-compact-3 .glass.card{padding:.2rem .3rem!important;margin-bottom:.3rem!important}
+#print-content.print-compact-3 .sig-section{padding:.3rem .3rem .18rem!important;gap:.6rem!important;margin-top:.4rem!important;border-top:1px solid #cbd5e1!important}
 #print-content.print-compact-3 .sig-space{height:16px!important}
-#print-content.print-compact-3 .sig-label,#print-content.print-compact-3 .sig-caption,#print-content.print-compact-3 .sig-date-label{font-size:7px!important}
+#print-content.print-compact-3 .sig-label,#print-content.print-compact-3 .sig-caption,#print-content.print-compact-3 .sig-date-label{font-size:7.8px!important}
+#print-content.print-compact-3 .sig-name-input,#print-content.print-compact-3 .sig-date-input{font-size:8.3px!important}
 
 @media print {
   @page{ size:A4 landscape; margin:8mm 9mm; }
