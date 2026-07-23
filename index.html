@@ -65,7 +65,7 @@
         console.error("Login error:", e);
         return null;
       }
-    } 
+    }
   };
 
   window.dispatchEvent(new Event("firebaseReady"));
@@ -397,7 +397,7 @@ td.editable input{ width:58px; padding:4px 6px; border:2px solid var(--blue-acce
 #print-content.print-compact-3 .sig-name-input,#print-content.print-compact-3 .sig-date-input{font-size:8.3px!important}
 
 @media print {
-  @page{ size:A4 landscape; margin:5mm 6mm; }
+  @page{ size:A4 landscape; margin:8mm 9mm; }
   html,body{width:100%;margin:0;padding:0;}
   body{background:#fff!important;}
   body::before{display:none!important}
@@ -1808,7 +1808,7 @@ function buildSummaryHTML(cid) {
     </div>
 
     <!-- Grade Distribution -->
-    <div class="glass card" style="margin-bottom:1.25rem;padding:1rem 1.25rem;">
+    <div class="glass card grade-dist-card" style="margin-bottom:1.25rem;padding:1rem 1.25rem;">
       <h3 style="font-size:.88rem;font-weight:800;margin-bottom:.9rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;"><i class="fas fa-chart-bar" style="color:var(--cyan);margin-right:.4rem;"></i>Grade Distribution</h3>
       <div style="display:flex;gap:.75rem;align-items:flex-end;height:64px;">
         ${[{label:"A ≥75",val:gradeA,color:"#10b981"},{label:"B ≥60",val:gradeB,color:"#38bdf8"},{label:"C ≥45",val:gradeC,color:"#f59e0b"},{label:"S >35",val:gradeS,color:"#f97316"},{label:"W <35",val:gradeF,color:"#ef4444"}].map(g2 => {
@@ -1914,7 +1914,11 @@ function getPrintSettings() {
     fontScale: 100,           // overall print size, %
     sigAlign: "justify",       // justify | left | center | right
     sigSpacing: 0,               // extra space above signature block, px
-    nameSubjectGap: 3            // space between Name column and first subject column, px
+    nameSubjectGap: 3,            // space between Name column and first subject column, px
+    colName: 0,             // Name column width, px (0 = auto/default)
+    colSubject: 0,           // each Subject column width, px (0 = auto/default)
+    colAvg: 0,                // Avg column width, px (0 = auto/default)
+    colRank: 0                  // Rank column width, px (0 = auto/default)
   };
   try {
     const saved = JSON.parse(localStorage.getItem(PRINT_SETTINGS_KEY) || "{}");
@@ -1986,6 +1990,33 @@ function openPrintSettings(cid) {
         <input type="number" id="ps-nameSubjectGap" class="form-control" min="0" max="20" step="1" value="${s.nameSubjectGap}"/>
       </div>
 
+      <div class="input-group" style="margin-bottom:.5rem;">
+        <label style="margin-bottom:0;">Column Widths (print only)</label>
+        <p style="font-size:.75rem;color:var(--text-muted);margin-top:.15rem;">Drag a slider to size that column. Leave at "Auto" to use the default width.</p>
+      </div>
+      <div class="flex gap-3" style="align-items:flex-end;flex-wrap:wrap;">
+        <div class="input-group" style="flex:1;min-width:130px;">
+          <label>Name Column</label>
+          <input type="range" id="ps-colName" min="0" max="260" step="5" value="${s.colName}" style="width:100%;"/>
+          <span id="ps-colName-val" style="font-size:.78rem;color:var(--text-muted);">${s.colName?s.colName+"px":"Auto"}</span>
+        </div>
+        <div class="input-group" style="flex:1;min-width:130px;">
+          <label>Subject Columns</label>
+          <input type="range" id="ps-colSubject" min="0" max="90" step="2" value="${s.colSubject}" style="width:100%;"/>
+          <span id="ps-colSubject-val" style="font-size:.78rem;color:var(--text-muted);">${s.colSubject?s.colSubject+"px":"Auto"}</span>
+        </div>
+        <div class="input-group" style="flex:1;min-width:130px;">
+          <label>Average Column</label>
+          <input type="range" id="ps-colAvg" min="0" max="80" step="2" value="${s.colAvg}" style="width:100%;"/>
+          <span id="ps-colAvg-val" style="font-size:.78rem;color:var(--text-muted);">${s.colAvg?s.colAvg+"px":"Auto"}</span>
+        </div>
+        <div class="input-group" style="flex:1;min-width:130px;">
+          <label>Rank Column</label>
+          <input type="range" id="ps-colRank" min="0" max="80" step="2" value="${s.colRank}" style="width:100%;"/>
+          <span id="ps-colRank-val" style="font-size:.78rem;color:var(--text-muted);">${s.colRank?s.colRank+"px":"Auto"}</span>
+        </div>
+      </div>
+
       <div class="modal-footer">
         <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
         <button class="btn btn-primary" onclick="applyPrintSettingsAndPrint('${esc(cid)}')"><i class="fas fa-print"></i> Apply &amp; Print</button>
@@ -1996,6 +2027,14 @@ function openPrintSettings(cid) {
   const fsRange = overlay.querySelector("#ps-fontScale");
   fsRange.addEventListener("input", () => {
     overlay.querySelector("#ps-fontScale-val").textContent = fsRange.value + "%";
+  });
+
+  ["colName","colSubject","colAvg","colRank"].forEach(key => {
+    const range = overlay.querySelector(`#ps-${key}`);
+    const label = overlay.querySelector(`#ps-${key}-val`);
+    range.addEventListener("input", () => {
+      label.textContent = (parseFloat(range.value) > 0) ? range.value + "px" : "Auto";
+    });
   });
 }
 
@@ -2010,7 +2049,11 @@ function applyPrintSettingsAndPrint(cid) {
     fontScale: Math.max(70, Math.min(140, parseFloat(document.getElementById("ps-fontScale").value) || 100)),
     sigAlign: document.getElementById("ps-sigAlign").value,
     sigSpacing: Math.max(0, Math.min(60, parseFloat(document.getElementById("ps-sigSpacing").value) || 0)),
-    nameSubjectGap: Math.max(0, Math.min(20, parseFloat(document.getElementById("ps-nameSubjectGap").value) ?? 3))
+    nameSubjectGap: Math.max(0, Math.min(20, parseFloat(document.getElementById("ps-nameSubjectGap").value) ?? 3)),
+    colName: Math.max(0, Math.min(260, parseFloat(document.getElementById("ps-colName").value) || 0)),
+    colSubject: Math.max(0, Math.min(90, parseFloat(document.getElementById("ps-colSubject").value) || 0)),
+    colAvg: Math.max(0, Math.min(80, parseFloat(document.getElementById("ps-colAvg").value) || 0)),
+    colRank: Math.max(0, Math.min(80, parseFloat(document.getElementById("ps-colRank").value) || 0))
   };
   savePrintSettings(s);
   if (overlay) overlay.remove();
@@ -2048,6 +2091,7 @@ function computeGlobalPrintTier(printContent, printSheet, budget) {
     tmp.innerHTML = buildSummaryHTML(biggestCid);
     tmp.querySelectorAll(".no-print").forEach(el => el.remove());
     tmp.querySelectorAll(".stats-grid").forEach(el => el.remove());
+    tmp.querySelectorAll(".grade-dist-card").forEach(el => el.remove());
     const subjChart = tmp.querySelector("#subj-avg-chart");
     if (subjChart) { const chartCard = subjChart.closest(".glass.card"); if (chartCard) chartCard.remove(); }
     printContent.innerHTML = tmp.innerHTML;
@@ -2097,9 +2141,10 @@ function doPrint(cid, printOpts) {
   tmp.innerHTML = summaryHTML;
   // Remove the action buttons (CSV / Print / Back)
   tmp.querySelectorAll(".no-print").forEach(el => el.remove());
-  // Print sheet should only contain: Grade Distribution, Results Table, Signature panel.
-  // Strip out the top stat cards and the Subject Averages chart card.
+  // Print sheet should only contain: Results Table, Signature panel.
+  // Strip out the top stat cards, Grade Distribution card, and Subject Averages chart card.
   tmp.querySelectorAll(".stats-grid").forEach(el => el.remove());
+  tmp.querySelectorAll(".grade-dist-card").forEach(el => el.remove());
   const subjChart = tmp.querySelector("#subj-avg-chart");
   if (subjChart) { const chartCard = subjChart.closest(".glass.card"); if (chartCard) chartCard.remove(); }
   const printContent = document.getElementById("print-content");
@@ -2134,9 +2179,27 @@ function doPrint(cid, printOpts) {
     pageStyle.id = "dynamic-print-page-style";
     document.head.appendChild(pageStyle);
   }
+  // Column-width overrides: Name is column 3, subjects fill columns 4..(3+n),
+  // then Total, Avg, Rank follow — computed from THIS class's subject count
+  // so the widths land on the right columns regardless of how many subjects
+  // this particular class has.
+  const subjCount  = (g.subjects || []).length;
+  const avgCol     = 5 + subjCount;
+  const rankCol    = 6 + subjCount;
+  let colWidthCSS = "";
+  if (s.colName)    colWidthCSS += `#print-area .sum-table th:nth-child(3),#print-area .sum-table td:nth-child(3){width:${s.colName}px!important;max-width:${s.colName}px!important}`;
+  if (s.colSubject) colWidthCSS += `#print-area .sum-table th:nth-child(n+4):nth-child(-n+${3+subjCount}),#print-area .sum-table td:nth-child(n+4):nth-child(-n+${3+subjCount}){width:${s.colSubject}px!important;max-width:${s.colSubject}px!important}`;
+  if (s.colAvg)     colWidthCSS += `#print-area .sum-table th:nth-child(${avgCol}),#print-area .sum-table td:nth-child(${avgCol}){width:${s.colAvg}px!important;max-width:${s.colAvg}px!important}`;
+  if (s.colRank)    colWidthCSS += `#print-area .sum-table th:nth-child(${rankCol}),#print-area .sum-table td:nth-child(${rankCol}){width:${s.colRank}px!important;max-width:${s.colRank}px!important}`;
+  if (colWidthCSS) colWidthCSS = `#print-area .sum-table{table-layout:fixed!important}
+    #print-area .sum-table th{white-space:normal!important;word-break:break-word!important;line-height:1.15!important}
+    #print-area .sum-table td{white-space:normal!important;word-break:break-word!important}
+    ` + colWidthCSS;
+
   pageStyle.textContent = `@media print { @page { size:A4 landscape; margin:${marginV}mm ${marginH}mm; } }
     #print-area .sum-table th:nth-child(3),#print-area .sum-table td:nth-child(3){padding-right:${s.nameSubjectGap ?? 3}px!important}
-    #print-area .sum-table th:nth-child(4),#print-area .sum-table td:nth-child(4){padding-left:${s.nameSubjectGap ?? 3}px!important}`;
+    #print-area .sum-table th:nth-child(4),#print-area .sum-table td:nth-child(4){padding-left:${s.nameSubjectGap ?? 3}px!important}
+    ${colWidthCSS}`;
 
   // Force the whole sheet to fit exactly on ONE A4-landscape page, sized to
   // match the usable area for the CURRENT margins (297x210mm page).
