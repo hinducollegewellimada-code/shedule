@@ -65,7 +65,7 @@
         console.error("Login error:", e);
         return null;
       }
-    }
+    } 
   };
 
   window.dispatchEvent(new Event("firebaseReady"));
@@ -397,7 +397,7 @@ td.editable input{ width:58px; padding:4px 6px; border:2px solid var(--blue-acce
 #print-content.print-compact-3 .sig-name-input,#print-content.print-compact-3 .sig-date-input{font-size:8.3px!important}
 
 @media print {
-  @page{ size:A4 landscape; margin:8mm 9mm; }
+  @page{ size:A4 landscape; margin:5mm 6mm; }
   html,body{width:100%;margin:0;padding:0;}
   body{background:#fff!important;}
   body::before{display:none!important}
