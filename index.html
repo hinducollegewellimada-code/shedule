@@ -1177,7 +1177,7 @@ function renderStudentRow(s, cid, rowNo, subjects) {
   const marks = marksData[cid]?.[s.id] || {};
   let total = 0, cnt = 0;
   subjects.forEach(sub => { const v = parseFloat(marks[sub]); if (!isNaN(v)){ total+=v; cnt++; } });
-  const avg = cnt > 0 ? (total/cnt).toFixed(1) : "";
+  const avg = cnt > 0 ? (total/subjects.length).toFixed(1) : "";
   const passed = cnt > 0 && parseFloat(avg) >= 35;
   const isMale = s.gender === "Male";
   const gColor = isMale ? "#38bdf8" : "#f472b6";
@@ -1253,7 +1253,7 @@ function updateRowTotals(cid, sid) {
   const marks = marksData[cid]?.[sid] || {};
   let total = 0, cnt = 0;
   g.subjects.forEach(sub => { const v = parseFloat(marks[sub]); if (!isNaN(v)){ total+=v; cnt++; } });
-  const avg = cnt > 0 ? (total/cnt).toFixed(1) : "";
+  const avg = cnt > 0 ? (total/g.subjects.length).toFixed(1) : "";
   const avgNum = parseFloat(avg);
   const avgColor = avgNum>=75?"#10b981":avgNum>=60?"#38bdf8":avgNum>=45?"#f59e0b":avgNum>35?"#f97316":"#ef4444";
   const rSafe = cid.replace(/[^a-z0-9]/gi,"_");
@@ -1653,7 +1653,7 @@ function buildSchoolSummaryHTML() {
       g.subjects.forEach(sub => { const v = parseFloat(m[sub]); if (!isNaN(v)) { total += v; subCnt++; } });
       if (subCnt === 0) return;
       cnt++;
-      const avg = total / subCnt;
+      const avg = total / g.subjects.length;
       if (avg > 35) { passing++; }
       else { failedStudents.push({ class: g.name, name: s.name || "—", indexNo: s.indexNo || "—", avg: avg.toFixed(1) }); }
     });
@@ -1662,7 +1662,7 @@ function buildSchoolSummaryHTML() {
       const m = marksData[cid]?.[s.id] || {};
       let total = 0, subCnt = 0;
       g.subjects.forEach(sub => { const v = parseFloat(m[sub]); if (!isNaN(v)) { total += v; subCnt++; } });
-      return subCnt > 0 ? total / subCnt : null;
+      return subCnt > 0 ? total / g.subjects.length : null;
     }).filter(v => v !== null);
     const classAvg = classAvgVals.length ? (classAvgVals.reduce((a,b)=>a+b,0)/classAvgVals.length).toFixed(1) : "—";
     return { name: g.name, cid, cnt, passing, failed: cnt - passing, classAvg };
@@ -1768,7 +1768,7 @@ function buildSummaryHTML(cid) {
     const m = marksData[cid]?.[s.id] || {};
     let total=0,cnt=0;
     g.subjects.forEach(sub => { const v=parseFloat(m[sub]); if(!isNaN(v)){total+=v;cnt++;} });
-    return { ...s, total:cnt>0?total:-1, avg:cnt>0?(total/cnt).toFixed(1):"" };
+    return { ...s, total:cnt>0?total:-1, avg:cnt>0?(total/g.subjects.length).toFixed(1):"" };
   });
   const sorted = [...rawList].filter(x=>x.total>=0).sort((a,b)=>b.total-a.total);
   const withRank = rawList.map(s => ({ ...s, rank: sorted.findIndex(x=>x.id===s.id)>=0?sorted.findIndex(x=>x.id===s.id)+1:"—" }));
@@ -2017,6 +2017,72 @@ function applyPrintSettingsAndPrint(cid) {
   doPrint(cid, s);
 }
 
+// ════════════════════════════════════════════════════════════════
+//  GLOBAL PRINT TIER — every class must print with IDENTICAL table
+//  font-size / cell padding / avg-rank size, so the compaction level
+//  is decided ONCE using the school's LARGEST class (the one most
+//  likely to overflow), then reused for every class's printout —
+//  never re-measured per class. This guarantees the header, name/
+//  subject gap, and AVG/RANK columns look pixel-identical on every
+//  class sheet, exactly like the reference sheets.
+// ════════════════════════════════════════════════════════════════
+let cachedPrintTier = null; // "" | "print-compact" | "print-compact-2" | "print-compact-3"
+
+function computeGlobalPrintTier(printContent, printSheet, budget) {
+  if (cachedPrintTier !== null) return cachedPrintTier;
+
+  // Find the class with the most rows (students) — the one most likely
+  // to need the deepest compaction — and use IT to decide the tier
+  // that every class will then share.
+  let biggestCid = null, biggestCount = -1;
+  Object.keys(GRADES).forEach(cid => {
+    const cnt = (GRADES[cid].students || []).length;
+    if (cnt > biggestCount) { biggestCount = cnt; biggestCid = cid; }
+  });
+
+  const savedHTML = printContent.innerHTML;
+  const savedClass = printContent.className;
+
+  if (biggestCid) {
+    const tmp = document.createElement("div");
+    tmp.innerHTML = buildSummaryHTML(biggestCid);
+    tmp.querySelectorAll(".no-print").forEach(el => el.remove());
+    tmp.querySelectorAll(".stats-grid").forEach(el => el.remove());
+    const subjChart = tmp.querySelector("#subj-avg-chart");
+    if (subjChart) { const chartCard = subjChart.closest(".glass.card"); if (chartCard) chartCard.remove(); }
+    printContent.innerHTML = tmp.innerHTML;
+  }
+
+  printContent.className = savedClass.replace(/\bprint-compact(-2|-3)?\b/g, "").trim();
+  void printSheet.offsetHeight;
+  let tier = "";
+  if (printSheet.scrollHeight > budget) {
+    printContent.classList.add("print-compact");
+    void printSheet.offsetHeight;
+    tier = "print-compact";
+  }
+  if (printSheet.scrollHeight > budget) {
+    printContent.classList.remove("print-compact");
+    printContent.classList.add("print-compact-2");
+    void printSheet.offsetHeight;
+    tier = "print-compact-2";
+  }
+  if (printSheet.scrollHeight > budget) {
+    printContent.classList.remove("print-compact-2");
+    printContent.classList.add("print-compact-3");
+    void printSheet.offsetHeight;
+    tier = "print-compact-3";
+  }
+
+  // Restore whatever was actually being printed before we borrowed
+  // the print area to measure the biggest class.
+  printContent.innerHTML = savedHTML;
+  printContent.className = savedClass;
+
+  cachedPrintTier = tier;
+  return tier;
+}
+
 function doPrint(cid, printOpts) {
   const s = printOpts || getPrintSettings();
   const g = GRADES[cid];
@@ -2093,27 +2159,20 @@ function doPrint(cid, printOpts) {
   // `zoom` fully; it's the simplest way to scale everything uniformly).
   printSheet.style.zoom = Math.max(70, Math.min(140, s.fontScale || 100)) / 100;
 
-  // Step 0 → 1 → 2 → 3: shrink the table/signatures in stages, so the
-  // header and signature blocks stay full-size/legible for as long as possible.
+  // Every class prints at the SAME compaction tier — decided once from the
+  // school's largest class — so the table font-size, name/subject gap, and
+  // AVG/RANK column sizing are pixel-identical across every class's sheet,
+  // instead of drifting smaller/larger depending on how many students that
+  // particular class happens to have.
   void printSheet.offsetHeight; // reflow
-  if (printSheet.scrollHeight > budget) {
-    printContent.classList.add("print-compact");
-    void printSheet.offsetHeight;
-  }
-  if (printSheet.scrollHeight > budget) {
-    printContent.classList.remove("print-compact");
-    printContent.classList.add("print-compact-2");
-    void printSheet.offsetHeight;
-  }
-  if (printSheet.scrollHeight > budget) {
-    printContent.classList.remove("print-compact-2");
-    printContent.classList.add("print-compact-3");
-    void printSheet.offsetHeight;
-  }
-  // If it still overflows at maximum compaction (an unusually large class),
-  // it now flows naturally onto a correctly-positioned 2nd page instead of
-  // being squeezed/clipped — the table header row repeats and rows never
-  // split across the page break (see thead/tbody rules above).
+  const tier = computeGlobalPrintTier(printContent, printSheet, budget);
+  if (tier) printContent.classList.add(tier);
+  void printSheet.offsetHeight;
+  // If even the shared max-compaction tier overflows for THIS class (should
+  // only happen for a class bigger than the one used to decide the tier),
+  // it flows naturally onto a correctly-positioned 2nd page instead of being
+  // squeezed/clipped — the table header row repeats and rows never split
+  // across the page break (see thead/tbody rules above).
 
   setTimeout(() => { window.print(); }, 50);
   window.onafterprint = () => {
@@ -2192,7 +2251,7 @@ function exportMarksCSV(cid) {
       if (!isNaN(v)) { total+=v; cnt++; }
       return isNaN(v) ? "" : marks[sub];
     });
-    const avg = cnt>0 ? (total/cnt).toFixed(1) : "";
+    const avg = cnt>0 ? (total/g.subjects.length).toFixed(1) : "";
     rows.push([i++, s.indexNo||"", s.name||"", s.gender||"", ...subVals, cnt>0?total:"", avg]);
   });
   const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
